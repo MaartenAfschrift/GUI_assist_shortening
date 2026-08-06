@@ -56,7 +56,7 @@ classdef Assist_Shortening_GUI_exported < matlab.apps.AppBase
         adsPort = 350
         amsNetId = "172.18.234.64.1.1"  % ToDo: replace % Description
         TwinCatAdsPath = 'C:\TwinCAT\AdsApi\.NET\v4.0.30319\TwinCAT.Ads.dll';
-        sampling_frequency_gui = 10
+        sampling_frequency_gui = 30
         name_lowlevel_controller = 'my_lowlevel_controller' % to acces control params
         name_highlevel_controller = 'my_highlevel_controller' % to acces control params
         JointWindowSec = 5 % number of seconds in figure

@@ -30,11 +30,11 @@ Do this before UI work.
 
 Create your own table for your project:
 
-| Read index (double) | Meaning | Unit |
-|---|---|---|
-| 1 | Motor angle knee (example) | deg/rad |
-| 2 | Motor torque knee (example) | Nm |
-| ... | ... | ... |
+| Read index (double) | Meaning                     | Unit    |
+| ------------------- | --------------------------- | ------- |
+| 1                   | Motor angle knee (example)  | deg/rad |
+| 2                   | Motor torque knee (example) | Nm      |
+| ...                 | ...                         | ...     |
 
 ### 3.2 Write targets (from existing GUI pattern)
 
@@ -43,6 +43,7 @@ Prefix in existing GUI:
 `Exosoft_Controller.ModelParameters.`
 
 Trigger-type writes (pulse 1->0):
+
 - `PosCtrlTrigger_Knee_Value`
 - `SlackCtrlTrigger_Knee_Value`
 - `TrqCtrlTrigger_Knee_Value`
@@ -53,6 +54,7 @@ Trigger-type writes (pulse 1->0):
 - `CalibrateMotorOffset_Value`
 
 Continuous-value writes:
+
 - `TorqueRef_Knee_Value`
 - `ManualOffset_Knee_Value`
 - `TorqueRef_Ankle_Value`
@@ -69,15 +71,18 @@ For generated TwinCAT modules, build ADS paths from:
 `<ModuleName>.<DataArea>.<SymbolName>`
 
 For `jlo_assist_short_explicit_clean_Lon.tmc`:
+
 - Module: `jlo_assist_short_explicit_clean_Lonit`
 - DataAreas include: `Output`, `ModelParameters`, `BlockIO`
 
 Stable default policy:
+
 - **Read** from `Output`
 - **Write** tunables in `ModelParameters`
 - Avoid `BlockIO` in baseline GUI (internal names can change more across rebuilds)
 
 Example from your model:
+
 - `exo_torque_desired_highlevel_r` is in `Output`  
   -> `jlo_assist_short_explicit_clean_Lonit.Output.exo_torque_desired_highlevel_r`
 - `exo_torque_desired_r` is in `BlockIO`  
@@ -192,13 +197,13 @@ end
 
 ## 9. Migration notes from `GUI_ArvidKeemink.m`
 
-| Old script pattern | App Designer equivalent |
-|---|---|
-| `figure/uicontrol/uipanel` | drag-and-drop components in `.mlapp` |
-| nested callbacks in one file | component callbacks + private methods |
-| `eval`-based text updates | direct label property updates |
-| global-ish shared variables in function scope | app private properties |
-| manual close request | app `delete` cleanup |
+| Old script pattern                            | App Designer equivalent               |
+| --------------------------------------------- | ------------------------------------- |
+| `figure/uicontrol/uipanel`                    | drag-and-drop components in `.mlapp`  |
+| nested callbacks in one file                  | component callbacks + private methods |
+| `eval`-based text updates                     | direct label property updates         |
+| global-ish shared variables in function scope | app private properties                |
+| manual close request                          | app `delete` cleanup                  |
 
 ## 10. Optional appendix: remote/deployment setup
 
