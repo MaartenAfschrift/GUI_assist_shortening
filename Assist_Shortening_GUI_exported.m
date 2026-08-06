@@ -1,0 +1,988 @@
+classdef Assist_Shortening_GUI_exported < matlab.apps.AppBase
+
+    % Properties that correspond to app components
+    properties (Access = public)
+        UIFigure                       matlab.ui.Figure
+        TextArea                       matlab.ui.control.TextArea
+        maxTorqueSlider                matlab.ui.control.Slider
+        maxTorqueSliderLabel           matlab.ui.control.Label
+        enabledatacollectionCheckBox   matlab.ui.control.CheckBox
+        InitLowlevelcontrollerPanel    matlab.ui.container.Panel
+        durationzerosSlider            matlab.ui.control.Slider
+        durationzerosSliderLabel       matlab.ui.control.Label
+        enablemotorvelocityRCheckBox   matlab.ui.control.CheckBox
+        enabledriveRCheckBox           matlab.ui.control.CheckBox
+        enablemotorvelocityLCheckBox   matlab.ui.control.CheckBox
+        enabledriveLCheckBox           matlab.ui.control.CheckBox
+        maxdorsiflexRButton            matlab.ui.control.Button
+        maxplantarflexRButton          matlab.ui.control.Button
+        zeroencoderRButton             matlab.ui.control.Button
+        maxdorsiflexLButton            matlab.ui.control.Button
+        maxplantarflexLButton          matlab.ui.control.Button
+        zeroencoderLButton             matlab.ui.control.Button
+        zeroloadcellRButton            matlab.ui.control.Button
+        zeroLoadcellLButton            matlab.ui.control.Button
+        SelectControllerDropDown       matlab.ui.control.DropDown
+        SelectControllerDropDownLabel  matlab.ui.control.Label
+        HighlevelcontrollersettingsPanel  matlab.ui.container.Panel
+        cutoff_velEditField            matlab.ui.control.NumericEditField
+        cutoff_velEditFieldLabel       matlab.ui.control.Label
+        bexoEditField                  matlab.ui.control.NumericEditField
+        bexoEditFieldLabel             matlab.ui.control.Label
+        MinimalTorqueEditField         matlab.ui.control.NumericEditField
+        MinimalTorqueEditFieldLabel    matlab.ui.control.Label
+        PercentageAssistanceEditField  matlab.ui.control.NumericEditField
+        PercentageAssistanceEditFieldLabel  matlab.ui.control.Label
+        actdyn_typeDropDown            matlab.ui.control.DropDown
+        actdyn_typeDropDownLabel       matlab.ui.control.Label
+        applyassistanceCheckBox        matlab.ui.control.CheckBox
+        UploadMuscleParamsButton       matlab.ui.control.Button
+        SelectMuscleParamsFileButton   matlab.ui.control.Button
+        LowlevelcontrollersettingsPanel  matlab.ui.container.Panel
+        PdcontrollerdesiredtorquetrackingLabel  matlab.ui.control.Label
+        KdEditField                    matlab.ui.control.NumericEditField
+        KdEditFieldLabel               matlab.ui.control.Label
+        KpEditField                    matlab.ui.control.NumericEditField
+        KpEditFieldLabel               matlab.ui.control.Label
+        RightJointMoments              matlab.ui.control.UIAxes
+        LeftJointMoments               matlab.ui.control.UIAxes
+        RightMuscleMoments             matlab.ui.control.UIAxes
+        LeftMuscleMoments              matlab.ui.control.UIAxes
+    end
+
+
+    properties (Access = private)
+        % Required inputs, might need to change
+        adsPort = 350
+        amsNetId = "172.18.234.64.1.1"  % ToDo: replace % Description
+        TwinCatAdsPath = 'C:\TwinCAT\AdsApi\.NET\v4.0.30319\TwinCAT.Ads.dll';
+        sampling_frequency_gui = 10
+        name_lowlevel_controller = 'my_lowlevel_controller' % to acces control params
+        name_highlevel_controller = 'my_highlevel_controller' % to acces control params
+        JointWindowSec = 5 % number of seconds in figure
+        dt_zero_sensors  = 2; % duration time window to get zero value sensors
+
+        % variables specific for this program
+        muscle_params_file = ''; % file with the calibrated muscle parameters
+        headers_muscle_params = { ...
+            'Gastroc_lmOpt', 'Gastroc_Atendon', 'Gastroc_tau_act', 'Gastroc_tau_deact', 'Gastroc_scale_emg', ...
+            'Soleus_lmOpt', 'Soleus_Atendon', 'Soleus_tau_act', 'Soleus_tau_deact', 'Soleus_scale_emg', ...
+            'Tibialis_lmOpt', 'Tibialis_Atendon', 'Tibialis_tau_act', 'Tibialis_tau_deact', 'Tibialis_scale_emg' ...
+            }; % update muscle parameters will change these variables now
+
+        % figure Left joint moment things
+        leftJointPlot
+        leftJointHandle
+        leftJointModelPlot
+        leftJointModelHandle
+        leftAssistShortPlot
+        leftAssistShortHandle
+        leftJointStartTic        
+        leftJointMaxPoints = 50 % default value
+
+        % figure Right joint moment things
+        rightJointPlot
+        rightJointHandle
+        rightJointModelPlot
+        rightJointModelHandle
+        rightAssistShortPlot
+        rightAssistShortHandle
+        rightJointStartTic
+        rightJointMaxPoints = 50% default value
+
+        % figure left moments generated by muscles
+        leftTauSolPlot
+        leftTauSolHandle
+        leftTauGasPlot
+        leftTauGasHandle
+        leftTauTibPlot
+        leftTauTibHandle
+        leftTauStartTic
+        leftTauMaxPoints = 50
+
+        % figure left moments generated by muscles
+        rightTauSolPlot
+        rightTauSolHandle
+        rightTauGasPlot
+        rightTauGasHandle
+        rightTauTibPlot
+        rightTauTibHandle
+        rightTauStartTic
+        rightTauMaxPoints = 50
+
+        % various things handled automatically
+        tcClient
+        scalarReadStream
+        scalarReadBin        
+        writeMap struct
+        loopTimer timer
+    end
+
+    methods (Access = private)
+
+        function updateLoop(app)
+            try
+                % update left joint moment datapoints
+                leftJointMoment = app.readScalarSignal(app.leftJointHandle);
+                leftJointMomentModel = app.readScalarSignal(app.leftJointModelHandle);
+                leftAssistShort = app.readScalarSignal(app.leftAssistShortHandle);
+
+                % update right joint moment datapoints
+                rightJointMoment = app.readScalarSignal(app.rightJointHandle);
+                rightJointMomentModel = app.readScalarSignal(app.rightJointModelHandle);
+                rightAssistShort = app.readScalarSignal(app.rightAssistShortHandle); 
+
+                % update left tau muscles datapoints
+                leftTauSol = app.readScalarSignal(app.leftTauSolHandle);
+                leftTauGas = app.readScalarSignal(app.leftTauGasHandle);
+                leftTauTib = app.readScalarSignal(app.leftTauTibHandle);
+
+                % update left tau muscles datapoints
+                rightTauSol = app.readScalarSignal(app.rightTauSolHandle);
+                rightTauGas = app.readScalarSignal(app.rightTauGasHandle);
+                rightTauTib = app.readScalarSignal(app.rightTauTibHandle);
+
+            catch ME
+                app.TextArea.Value = [app.TextArea.Value; {'TwinCAT update failed'}];
+                warning('TwinCAT update failed');
+                if ~isempty(app.loopTimer) && isvalid(app.loopTimer)
+                    stop(app.loopTimer);
+                end
+                return;
+            end
+            
+            % update plots
+            app.updateLeftJointPlot(leftJointMoment, leftJointMomentModel, leftAssistShort);
+            app.updateRightJointPlot(rightJointMoment, rightJointMomentModel, rightAssistShort);
+            app.updateLeftMuscleTauPlot(leftTauSol, leftTauGas, leftTauTib);
+            app.updateRightMuscleTauPlot(rightTauSol, rightTauGas, rightTauTib);
+            drawnow limitrate nocallbacks
+        end
+
+        function value = readScalarSignal(app, handle)
+            app.tcClient.Read(handle, app.scalarReadStream);
+            value = app.scalarReadBin.ReadDouble;
+            app.scalarReadStream.Position = 0;
+        end
+
+        function writeDouble(app, handle, value)
+            app.tcClient.WriteAny(handle, typecast(double(value), 'uint8'));
+        end
+
+        function pulse(app, handle, dt)
+            app.writeDouble(handle, 1);
+            pause(dt);
+            app.writeDouble(handle, 0);
+        end
+
+        function delete_ads_connection(app)
+            if ~isempty(app.loopTimer) && isvalid(app.loopTimer), stop(app.loopTimer); delete(app.loopTimer); end
+            if ~isempty(app.tcClient), app.tcClient.Close; end
+        end
+
+        % methods for graph
+        function initLeftJointPlot(app)
+            cla(app.LeftJointMoments);
+            grid(app.LeftJointMoments, 'on');
+            hold(app.LeftJointMoments, 'on');
+            app.leftJointPlot = animatedline(app.LeftJointMoments, ...
+                'Color', [0 0.4470 0.7410], ...
+                'LineWidth', 1.25, ...
+                'MaximumNumPoints', app.leftJointMaxPoints);
+            app.leftJointModelPlot = animatedline(app.LeftJointMoments, ...
+                'Color', [0.8500 0.3250 0.0980], ...
+                'LineWidth', 1.25, ...
+                'LineStyle', '--', ...
+                'MaximumNumPoints', app.leftJointMaxPoints);
+            app.leftAssistShortPlot = animatedline(app.LeftJointMoments, ...
+                'Color', [0.0980 0.3250  0.8500], ...
+                'LineWidth', 1.25, ...
+                'LineStyle', '--', ...
+                'MaximumNumPoints', app.leftJointMaxPoints);
+            legend(app.LeftJointMoments, {'Applied','PercID','AssistShort'}, 'Location', 'best');
+            app.leftJointStartTic = tic;
+        end
+
+        function updateLeftJointPlot(app, leftJointMoment, leftJointMomentModel,...
+                leftAssistShort)
+            t = toc(app.leftJointStartTic);
+            addpoints(app.leftJointPlot, t, leftJointMoment);
+            addpoints(app.leftJointModelPlot, t, leftJointMomentModel);
+            addpoints(app.leftAssistShortPlot, t, leftAssistShort);
+            if t > app.JointWindowSec
+                xlim(app.LeftJointMoments, [t - app.JointWindowSec, t]);
+            else
+                xlim(app.LeftJointMoments, [0, app.JointWindowSec]);
+            end
+        end
+
+        function initRightJointPlot(app)
+            cla(app.RightJointMoments);
+            grid(app.RightJointMoments, 'on');
+            hold(app.RightJointMoments, 'on');
+            app.rightJointPlot = animatedline(app.RightJointMoments, ...
+                'Color', [0 0.4470 0.7410], ...
+                'LineWidth', 1.25, ...
+                'MaximumNumPoints', app.rightJointMaxPoints);
+            app.rightJointModelPlot = animatedline(app.RightJointMoments, ...
+                'Color', [0.8500 0.3250 0.0980], ...
+                'LineWidth', 1.25, ...
+                'LineStyle', '--', ...
+                'MaximumNumPoints', app.rightJointMaxPoints);
+            app.rightAssistShortPlot = animatedline(app.RightJointMoments, ...
+                'Color', [0.0980 0.3250  0.8500], ...
+                'LineWidth', 1.25, ...
+                'LineStyle', '--', ...
+                'MaximumNumPoints', app.rightJointMaxPoints);
+            legend(app.RightJointMoments, {'Applied','PercID','AssistShort'}, 'Location', 'best');
+            app.rightJointStartTic = tic;
+        end
+
+        function updateRightJointPlot(app, rightJointMoment, rightJointMomentModel,...
+                rightAssistShort)
+            t = toc(app.rightJointStartTic);
+            addpoints(app.rightJointPlot, t, rightJointMoment);
+            addpoints(app.rightJointModelPlot, t, rightJointMomentModel);
+            addpoints(app.rightAssistShortPlot, t, rightAssistShort);
+            if t > app.JointWindowSec
+                xlim(app.RightJointMoments, [t - app.JointWindowSec, t]);
+            else
+                xlim(app.RightJointMoments, [0, app.JointWindowSec]);
+            end
+        end
+
+        % add functions for updating Left and Right Muscle Tau plot
+        function initLeftMuscleTauPlot(app)
+            cla(app.LeftMuscleMoments);
+            grid(app.LeftMuscleMoments, 'on');
+            hold(app.LeftMuscleMoments, 'on');
+            app.leftTauSolPlot = animatedline(app.LeftMuscleMoments, ...
+                'Color', [0 0.4470 0.7410], ...
+                'LineWidth', 1.25, ...
+                'MaximumNumPoints', app.leftTauMaxPoints);
+            app.leftTauGasPlot = animatedline(app.LeftMuscleMoments, ...
+                'Color', [0.8500 0.3250 0.0980], ...
+                'LineWidth', 1.25, ...
+                'MaximumNumPoints', app.leftTauMaxPoints);
+            app.leftTauTibPlot = animatedline(app.LeftMuscleMoments, ...
+                'Color', [0.4660 0.6740 0.1880], ...
+                'LineWidth', 1.25, ...
+                'MaximumNumPoints', app.leftTauMaxPoints);
+            legend(app.LeftMuscleMoments, {'Sol','Gas','Tib'}, 'Location', 'best');
+            app.leftTauStartTic = tic;
+        end
+
+        function updateLeftMuscleTauPlot(app, leftTauSol, leftTauGas, leftTauTib)
+            t = toc(app.leftTauStartTic);
+            addpoints(app.leftTauSolPlot, t, leftTauSol);
+            addpoints(app.leftTauGasPlot, t, leftTauGas);
+            addpoints(app.leftTauTibPlot, t, leftTauTib);
+            if t > app.JointWindowSec
+                xlim(app.LeftMuscleMoments, [t - app.JointWindowSec, t]);
+            else
+                xlim(app.LeftMuscleMoments, [0, app.JointWindowSec]);
+            end
+        end
+
+        function initRightMuscleTauPlot(app)
+            cla(app.RightMuscleMoments);
+            grid(app.RightMuscleMoments, 'on');
+            hold(app.RightMuscleMoments, 'on');
+            app.rightTauSolPlot = animatedline(app.RightMuscleMoments, ...
+                'Color', [0 0.4470 0.7410], ...
+                'LineWidth', 1.25, ...
+                'MaximumNumPoints', app.rightTauMaxPoints);
+            app.rightTauGasPlot = animatedline(app.RightMuscleMoments, ...
+                'Color', [0.8500 0.3250 0.0980], ...
+                'LineWidth', 1.25, ...
+                'MaximumNumPoints', app.rightTauMaxPoints);
+            app.rightTauTibPlot = animatedline(app.RightMuscleMoments, ...
+                'Color', [0.4660 0.6740 0.1880], ...
+                'LineWidth', 1.25, ...
+                'MaximumNumPoints', app.rightTauMaxPoints);
+            legend(app.RightMuscleMoments, {'Sol','Gas','Tib'}, 'Location', 'best');
+            app.rightTauStartTic = tic;
+        end
+
+        function updateRightMuscleTauPlot(app, rightTauSol, rightTauGas, rightTauTib)
+            t = toc(app.rightTauStartTic);
+            addpoints(app.rightTauSolPlot, t, rightTauSol);
+            addpoints(app.rightTauGasPlot, t, rightTauGas);
+            addpoints(app.rightTauTibPlot, t, rightTauTib);
+            if t > app.JointWindowSec
+                xlim(app.RightMuscleMoments, [t - app.JointWindowSec, t]);
+            else
+                xlim(app.RightMuscleMoments, [0, app.JointWindowSec]);
+            end
+        end
+
+
+    end
+
+
+    % Callbacks that handle component events
+    methods (Access = private)
+
+        % Code that executes after component creation
+        function startupFcn(app)
+            % this is the startup function of the GUI
+            % ponytail: delete old timers from previous crashed runs; narrow to app-owned timer if needed later
+            t = timerfindall;
+            if ~isempty(t), delete(t); end            
+            app.TextArea.Value = {'starting gui'};
+            
+            % add twincat Ads
+            try
+                NET.addAssembly(app.TwinCatAdsPath);
+                import TwinCAT.Ads.*
+                app.tcClient = TcAdsClient;
+                app.tcClient.Connect(AmsNetId(char(app.amsNetId)), app.adsPort);
+                app.scalarReadStream = AdsStream(8);
+                app.scalarReadBin = AdsBinaryReader(app.scalarReadStream);
+                app.TextArea.Value = [app.TextArea.Value; {'ADS connection done'}];
+            catch ME
+                warning('TwinCAT ADS unavailable, using MockAdsClient:','%s', ME.message);
+                app.tcClient = MockAdsClient;
+                app.tcClient.Connect([], []);
+                app.scalarReadStream = System.IO.MemoryStream(8);
+                app.scalarReadBin = System.IO.BinaryReader(app.scalarReadStream);
+                app.TextArea.Value = [app.TextArea.Value; {'ADS connection failed, debug ADS mode activated (dummy ADS)'}];
+            end
+
+            % init left joint moment plots
+            base_name_high = [app.name_highlevel_controller '.'];
+            
+            %-----------------------------
+            %   handles to outputs
+            % ----------------------------
+            base_name = [app.name_highlevel_controller '.Output.'];
+            app.leftJointHandle = app.tcClient.CreateVariableHandle([base_name 'exo_torque_desired_highlevel_l']);
+            app.leftJointModelHandle = app.tcClient.CreateVariableHandle([base_name 'perc_assistance_l']);
+            app.leftAssistShortHandle = app.tcClient.CreateVariableHandle([base_name 'assist_shortening_l']);
+            app.rightJointHandle = app.tcClient.CreateVariableHandle([base_name 'exo_torque_desired_highlevel_r']);
+            app.rightJointModelHandle = app.tcClient.CreateVariableHandle([base_name 'perc_assistance_r']);
+            app.rightAssistShortHandle = app.tcClient.CreateVariableHandle([base_name_high 'assist_shortening_r']);
+            app.leftTauSolHandle = app.tcClient.CreateVariableHandle([base_name 'tau_sol_l']);
+            app.rightTauSolHandle = app.tcClient.CreateVariableHandle([base_name 'tau_sol_r']);
+            app.leftTauGasHandle = app.tcClient.CreateVariableHandle([base_name 'tau_gas_l']);
+            app.rightTauGasHandle = app.tcClient.CreateVariableHandle([base_name 'tau_gas_r']);
+            app.leftTauTibHandle = app.tcClient.CreateVariableHandle([base_name 'tau_tib_l']);
+            app.rightTauTibHandle = app.tcClient.CreateVariableHandle([base_name 'tau_tib_r']);
+
+
+            %---------------------------------
+            %   handles to control parameters
+            % --------------------------------
+
+            % lets start with the muscle parameters. note that we will have
+            % to change this for the left and right side
+            % ToDo: Ask Arvid if we have to add _Value here
+            app.writeMap = struct( ...
+                'Gastroc_lmOpt',     app.tcClient.CreateVariableHandle([base_name_high 'ModelParameters.Gastroc_lmOpt']), ...
+                'Gastroc_Atendon',   app.tcClient.CreateVariableHandle([base_name_high 'ModelParameters.Gastroc_Atendon']), ...
+                'Gastroc_tau_act',   app.tcClient.CreateVariableHandle([base_name_high 'ModelParameters.Gastroc_tau_act']), ...
+                'Gastroc_tau_deact', app.tcClient.CreateVariableHandle([base_name_high 'ModelParameters.Gastroc_tau_deact']), ...
+                'Gastroc_scale_emg', app.tcClient.CreateVariableHandle([base_name_high 'ModelParameters.Gastroc_scale_emg']), ...
+                'Soleus_lmOpt',      app.tcClient.CreateVariableHandle([base_name_high 'ModelParameters.Soleus_lmOpt']), ...
+                'Soleus_Atendon',    app.tcClient.CreateVariableHandle([base_name_high 'ModelParameters.Soleus_Atendon']), ...
+                'Soleus_tau_act',    app.tcClient.CreateVariableHandle([base_name_high 'ModelParameters.Soleus_tau_act']), ...
+                'Soleus_tau_deact',  app.tcClient.CreateVariableHandle([base_name_high 'ModelParameters.Soleus_tau_deact']), ...
+                'Soleus_scale_emg',  app.tcClient.CreateVariableHandle([base_name_high 'ModelParameters.Soleus_scale_emg']), ...
+                'Tibialis_lmOpt',    app.tcClient.CreateVariableHandle([base_name_high 'ModelParameters.Tibialis_lmOpt']), ...
+                'Tibialis_Atendon',  app.tcClient.CreateVariableHandle([base_name_high 'ModelParameters.Tibialis_Atendon']), ...
+                'Tibialis_tau_act',  app.tcClient.CreateVariableHandle([base_name_high 'ModelParameters.Tibialis_tau_act']), ...
+                'Tibialis_tau_deact',app.tcClient.CreateVariableHandle([base_name_high 'ModelParameters.Tibialis_tau_deact']), ...
+                'Tibialis_scale_emg',app.tcClient.CreateVariableHandle([base_name_high 'ModelParameters.Tibialis_scale_emg']) ...
+                ); % add all required variables
+
+            % controller decision logic
+            app.writeMap.ControllerMode = app.tcClient.CreateVariableHandle([base_name_high 'ModelParameters.ControllerMode']);
+            app.writeMap.MinimalTorque = app.tcClient.CreateVariableHandle([base_name_high 'ModelParameters.MinimalTorque']);
+            app.writeMap.ApplyAssistance = app.tcClient.CreateVariableHandle([base_name_high 'ModelParameters.ApplyAssistance']);
+            app.writeMap.perc_assistance = app.tcClient.CreateVariableHandle([base_name_high 'ModelParameters.PercentageAssistance']);
+            app.writeMap.b_exo = app.tcClient.CreateVariableHandle([base_name_high 'ModelParameters.bexo']);
+            app.writeMap.actdyn_selection = app.tcClient.CreateVariableHandle([base_name_high 'ModelParameters.ActDyn_mode']);
+            app.writeMap.cutoff_vel = app.tcClient.CreateVariableHandle([base_name_high 'ModelParameters.cutoff_vel']);
+
+            % low level controller parameters
+            base_name = [app.name_lowlevel_controller '.ModelParameters.'];
+            app.writeMap.zero_loadcell_left = app.tcClient.CreateVariableHandle([base_name, 'Constant50']);
+            app.writeMap.zero_loadcell_right = app.tcClient.CreateVariableHandle([base_name, 'Constant64']);
+            app.writeMap.zero_encoder_left = app.tcClient.CreateVariableHandle([base_name, 'Constant30']);
+            app.writeMap.zero_encoder_right = app.tcClient.CreateVariableHandle([base_name, 'Constant65']);
+            app.writeMap.max_plantarflex_left = app.tcClient.CreateVariableHandle([base_name, 'Constant51']);
+            app.writeMap.max_plantarflex_right = app.tcClient.CreateVariableHandle([base_name, 'Constant34']);
+            app.writeMap.max_dorsiflex_left = app.tcClient.CreateVariableHandle([base_name, 'Constant35']);
+            app.writeMap.max_dorsiflex_right = app.tcClient.CreateVariableHandle([base_name, 'Constant36']);
+            app.writeMap.max_torque = app.tcClient.CreateVariableHandle([base_name, 'Constant40']);
+            app.writeMap.enable_drives_left = app.tcClient.CreateVariableHandle([base_name, 'Constant33']);
+            app.writeMap.enable_drives_right = app.tcClient.CreateVariableHandle([base_name, 'Constant54']);
+            app.writeMap.enable_motor_velocity_left = app.tcClient.CreateVariableHandle([base_name, 'Constant25']);
+            app.writeMap.enable_motor_velocity_right = app.tcClient.CreateVariableHandle([base_name, 'Constant26']);
+            app.writeMap.enable_data_collection = app.tcClient.CreateVariableHandle([base_name, 'Constant4']);
+            app.writeMap.pd_kp = app.tcClient.CreateVariableHandle([base_name, 'Manual_Kp2']); % ToDo: check underscore
+            app.writeMap.pd_kd = app.tcClient.CreateVariableHandle([base_name, 'Manual_Kd1']); 
+
+            % adapt MaxPoints if needed
+            app.leftJointMaxPoints = app.JointWindowSec * app.sampling_frequency_gui;
+            app.rightJointMaxPoints = app.JointWindowSec * app.sampling_frequency_gui;
+            app.leftTauMaxPoints = app.JointWindowSec * app.sampling_frequency_gui;
+            app.rightTauMaxPoints = app.JointWindowSec * app.sampling_frequency_gui;
+
+
+            % init the plot
+            app.initLeftJointPlot();
+            app.initRightJointPlot();
+            app.initLeftMuscleTauPlot();
+            app.initRightMuscleTauPlot();
+
+
+            % set sampling frequency of the GUI
+            app.loopTimer = timer('ExecutionMode','fixedRate','Period',1/app.sampling_frequency_gui, ...
+                'TimerFcn', @(~,~)app.updateLoop());
+            start(app.loopTimer);
+
+        end
+
+        % Button pushed function: SelectMuscleParamsFileButton
+        function SelectMuscleParamsFileButtonPushed(app, event)
+            % this callback should open a window that enables the user
+            % to select the matlab file you want to apply in the real-time
+            % controller
+            [file, path] = uigetfile('*.mat', 'Select a MATLAB file');
+            if isequal(file, 0) || isequal(path, 0)
+                app.muscle_params_file = '';
+                disp('No file selected.');
+                return;
+            end
+            app.muscle_params_file = fullfile(path, file);
+            fprintf('Selected file: %s\n', app.muscle_params_file);
+        end
+
+        % Button pushed function: UploadMuscleParamsButton
+        function UploadMuscleParamsButtonPushed(app, event)
+            % this callback should upload the muscle parameters to twincat
+            % steps:
+            %   1) read them from .mat file
+            %   2) assign them to twincat constants
+
+            if exist(app.muscle_params_file,'file')
+                % load the muscle params file
+                muscle_params = load(app.muscle_params_file);
+                % unpack muscle params in memory
+                % ToDo: discuss how to do this with Lonit. This will
+                % look something like this
+                % unpack the model: this extracts all the params to the
+                % workspace
+                %unpack_model(muscle_params.model)
+                % loop over all params we want to change
+                for iparam = 1:length(app.headers_muscle_params)
+                    % name of the variable
+                    var_name = app.headers_muscle_params{iparam};
+                    % the muscle name and param name
+                    parts = regexp(var_name, '^([^_]+)_(.*)$', 'tokens', 'once');
+                    muscle_name = parts{1};
+                    param_name = parts{2};
+                    % adapt muscle parameter value
+                    app.writeDouble(app.writeMap.(var_name),...
+                        muscle_params.model.(muscle_name).(param_name));
+                end
+            else
+                disp([app.muscle_params_file ' does not exist']);
+            end
+        end
+
+        % Close request function: UIFigure
+        function UIFigureCloseRequest(app, event)
+            delete_ads_connection(app);
+            delete(app);
+
+        end
+
+        % Value changed function: SelectControllerDropDown
+        function SelectControllerDropDownValueChanged(app, event)
+            value = app.SelectControllerDropDown.Value;
+            % I guess that value is now a string with the name that is
+            % selected. the options are
+            % {'Minimal_Impedance', 'BiologicalMoment', 'AssistShortening'}
+            controller_value = 0; % default is minimal impdance
+            if strcmp(value,'Minimal_Impedance')
+                controller_value = 0;
+                app.TextArea.Value = [app.TextArea.Value; {'Minimal Impedance controller selected'}];
+            elseif strcmp(value,'BiologicalMoment')
+                controller_value = 1;
+                app.TextArea.Value = [app.TextArea.Value; {'BioMoment controller selected'}];
+            elseif strcmp(value,'AssistShortening')
+                controller_value = 2;
+                app.TextArea.Value = [app.TextArea.Value; {'AssistShortening controller selected'}];
+            end
+            app.writeDouble(app.writeMap.ControllerMode,controller_value);
+        end
+
+        % Value changed function: applyassistanceCheckBox
+        function applyassistanceCheckBoxValueChanged(app, event)
+            bool_assistance = app.applyassistanceCheckBox.Value;
+            if bool_assistance
+                app.writeDouble(app.writeMap.ApplyAssistance, 1);
+                app.TextArea.Value = [app.TextArea.Value; {'assistance turned on'}];
+            else
+                app.writeDouble(app.writeMap.ApplyAssistance, 0);
+                app.TextArea.Value = [app.TextArea.Value; {'assistance turned off'}];
+            end
+        end
+
+        % Button pushed function: zeroLoadcellLButton
+        function zeroLoadcellLButtonPushed(app, event)
+            app.pulse(app.writeMap.zero_loadcell_left, app.dt_zero_sensors);
+        end
+
+        % Button pushed function: zeroloadcellRButton
+        function zeroloadcellRButtonPushed(app, event)
+            app.pulse(app.writeMap.zero_loadcell_right, app.dt_zero_sensors);
+        end
+
+        % Button pushed function: zeroencoderLButton
+        function zeroencoderLButtonPushed(app, event)
+            app.pulse(app.writeMap.zero_encoder_left, app.dt_zero_sensors);
+        end
+
+        % Button pushed function: zeroencoderRButton
+        function zeroencoderRButtonPushed(app, event)
+            app.pulse(app.writeMap.zero_encoder_right, app.dt_zero_sensors);
+        end
+
+        % Button pushed function: maxplantarflexLButton
+        function maxplantarflexLButtonPushed(app, event)
+            app.pulse(app.writeMap.max_plantarflex_left, app.dt_zero_sensors);
+        end
+
+        % Button pushed function: maxplantarflexRButton
+        function maxplantarflexRButtonPushed(app, event)
+            app.pulse(app.writeMap.max_plantarflex_right, app.dt_zero_sensors);
+        end
+
+        % Button pushed function: maxdorsiflexLButton
+        function maxdorsiflexLButtonPushed(app, event)
+            app.pulse(app.writeMap.max_dorsiflex_left, app.dt_zero_sensors);
+        end
+
+        % Button pushed function: maxdorsiflexRButton
+        function maxdorsiflexRButtonPushed(app, event)
+            app.pulse(app.writeMap.max_dorsiflex_right, app.dt_zero_sensors);
+        end
+
+        % Value changed function: enabledriveLCheckBox
+        function enabledriveLCheckBoxValueChanged(app, event)
+            value = app.enabledriveLCheckBox.Value;
+            app.writeDouble(app.writeMap.enable_drives_left, value);
+        end
+
+        % Value changed function: enabledriveRCheckBox
+        function enabledriveRCheckBoxValueChanged(app, event)
+            value = app.enabledriveRCheckBox.Value;
+            app.writeDouble(app.writeMap.enable_drives_right, value);
+        end
+
+        % Value changed function: enablemotorvelocityLCheckBox
+        function enablemotorvelocityLCheckBoxValueChanged(app, event)
+            value = app.enablemotorvelocityLCheckBox.Value;
+            app.writeDouble(app.writeMap.enable_motor_velocity_left, value);
+        end
+
+        % Value changed function: enablemotorvelocityRCheckBox
+        function enablemotorvelocityRCheckBoxValueChanged(app, event)
+            value = app.enablemotorvelocityRCheckBox.Value;
+            app.writeDouble(app.writeMap.enable_motor_velocity_right, value);
+        end
+
+        % Value changed function: enabledatacollectionCheckBox
+        function enabledatacollectionCheckBoxValueChanged(app, event)
+            bool_data_collection = app.enabledatacollectionCheckBox.Value;
+            if bool_data_collection
+                app.writeDouble(app.writeMap.enable_data_collection, 1);
+            else
+                app.writeDouble(app.writeMap.enable_data_collection, 0);
+            end
+        end
+
+        % Value changed function: durationzerosSlider
+        function durationzerosSliderValueChanged(app, event)
+            value = app.durationzerosSlider.Value;
+            app.dt_zero_sensors = value;
+        end
+
+        % Value changed function: maxTorqueSlider
+        function maxTorqueSliderValueChanged(app, event)
+            value = app.maxTorqueSlider.Value;
+            app.writeDouble(app.writeMap.max_torque,value);            
+        end
+
+        % Value changed function: KpEditField
+        function KpEditFieldValueChanged(app, event)
+            value = app.KpEditField.Value;
+            app.writeDouble(app.writeMap.pd_kp, value);
+        end
+
+        % Value changed function: KdEditField
+        function KdEditFieldValueChanged(app, event)
+            value = app.KdEditField.Value;
+            app.writeDouble(app.writeMap.pd_kd, value);
+        end
+
+        % Value changed function: bexoEditField
+        function bexoEditFieldValueChanged(app, event)
+            value = app.bexoEditField.Value;
+            app.writeDouble(app.writeMap.b_exo,value)
+        end
+
+        % Value changed function: PercentageAssistanceEditField
+        function PercentageAssistanceEditFieldValueChanged(app, event)
+            value = app.PercentageAssistanceEditField.Value;
+            app.writeDouble(app.writeMap.perc_assistance, value)
+        end
+
+        % Value changed function: MinimalTorqueEditField
+        function MinimalTorqueEditFieldValueChanged(app, event)
+            value = app.MinimalTorqueEditField.Value;
+            app.writeDouble(app.writeMap.ApplyAssistance, value)
+        end
+
+        % Value changed function: actdyn_typeDropDown
+        function actdyn_typeDropDownValueChanged(app, event)
+            value = app.actdyn_typeDropDown.Value;
+            % two options, default is the default option
+            output = 1;
+            if strcmp(value, 'Simple')
+                % do something
+                output = 1;
+            elseif strcmp(value, 'DeGroote2016')
+                % do something else
+                output = 2;
+            end
+            app.writeDouble(app.writeMap.actdyn_selection, output)            
+        end
+
+        % Value changed function: cutoff_velEditField
+        function cutoff_velEditFieldValueChanged(app, event)
+            value = app.cutoff_velEditField.Value;
+            app.writeDouble(app.writeMap.cutoff_vel, value)
+        end
+    end
+
+    % Component initialization
+    methods (Access = private)
+
+        % Create UIFigure and components
+        function createComponents(app)
+
+            % Create UIFigure and hide until all components are created
+            app.UIFigure = uifigure('Visible', 'off');
+            app.UIFigure.Position = [100 100 1106 758];
+            app.UIFigure.Name = 'MATLAB App';
+            app.UIFigure.CloseRequestFcn = createCallbackFcn(app, @UIFigureCloseRequest, true);
+
+            % Create LeftMuscleMoments
+            app.LeftMuscleMoments = uiaxes(app.UIFigure);
+            title(app.LeftMuscleMoments, 'Left')
+            ylabel(app.LeftMuscleMoments, 'Muscle Moment')
+            zlabel(app.LeftMuscleMoments, 'Z')
+            app.LeftMuscleMoments.Position = [399 224 300 185];
+
+            % Create RightMuscleMoments
+            app.RightMuscleMoments = uiaxes(app.UIFigure);
+            title(app.RightMuscleMoments, 'Right')
+            ylabel(app.RightMuscleMoments, 'Muscle Moment')
+            zlabel(app.RightMuscleMoments, 'Z')
+            app.RightMuscleMoments.Position = [727 224 300 185];
+
+            % Create LeftJointMoments
+            app.LeftJointMoments = uiaxes(app.UIFigure);
+            xlabel(app.LeftJointMoments, 'Time [s]')
+            ylabel(app.LeftJointMoments, 'Ankle Moment')
+            zlabel(app.LeftJointMoments, 'Z')
+            app.LeftJointMoments.Position = [399 36 300 185];
+
+            % Create RightJointMoments
+            app.RightJointMoments = uiaxes(app.UIFigure);
+            xlabel(app.RightJointMoments, 'Time [s]')
+            ylabel(app.RightJointMoments, 'Ankle Moment')
+            zlabel(app.RightJointMoments, 'Z')
+            app.RightJointMoments.Position = [727 36 300 185];
+
+            % Create LowlevelcontrollersettingsPanel
+            app.LowlevelcontrollersettingsPanel = uipanel(app.UIFigure);
+            app.LowlevelcontrollersettingsPanel.Title = 'Low level controller settings';
+            app.LowlevelcontrollersettingsPanel.Position = [31 442 547 171];
+
+            % Create KpEditFieldLabel
+            app.KpEditFieldLabel = uilabel(app.LowlevelcontrollersettingsPanel);
+            app.KpEditFieldLabel.HorizontalAlignment = 'right';
+            app.KpEditFieldLabel.Position = [334 95 25 22];
+            app.KpEditFieldLabel.Text = 'Kp';
+
+            % Create KpEditField
+            app.KpEditField = uieditfield(app.LowlevelcontrollersettingsPanel, 'numeric');
+            app.KpEditField.Limits = [0 200];
+            app.KpEditField.ValueChangedFcn = createCallbackFcn(app, @KpEditFieldValueChanged, true);
+            app.KpEditField.Position = [374 95 100 22];
+            app.KpEditField.Value = 10;
+
+            % Create KdEditFieldLabel
+            app.KdEditFieldLabel = uilabel(app.LowlevelcontrollersettingsPanel);
+            app.KdEditFieldLabel.HorizontalAlignment = 'right';
+            app.KdEditFieldLabel.Position = [335 64 25 22];
+            app.KdEditFieldLabel.Text = 'Kd';
+
+            % Create KdEditField
+            app.KdEditField = uieditfield(app.LowlevelcontrollersettingsPanel, 'numeric');
+            app.KdEditField.ValueChangedFcn = createCallbackFcn(app, @KdEditFieldValueChanged, true);
+            app.KdEditField.Position = [375 64 100 22];
+            app.KdEditField.Value = 0.5;
+
+            % Create PdcontrollerdesiredtorquetrackingLabel
+            app.PdcontrollerdesiredtorquetrackingLabel = uilabel(app.LowlevelcontrollersettingsPanel);
+            app.PdcontrollerdesiredtorquetrackingLabel.Position = [324 124 199 22];
+            app.PdcontrollerdesiredtorquetrackingLabel.Text = 'Pd controller desired torque tracking';
+
+            % Create HighlevelcontrollersettingsPanel
+            app.HighlevelcontrollersettingsPanel = uipanel(app.UIFigure);
+            app.HighlevelcontrollersettingsPanel.Title = 'High level controller settings';
+            app.HighlevelcontrollersettingsPanel.Position = [40 19 327 377];
+
+            % Create SelectMuscleParamsFileButton
+            app.SelectMuscleParamsFileButton = uibutton(app.HighlevelcontrollersettingsPanel, 'push');
+            app.SelectMuscleParamsFileButton.ButtonPushedFcn = createCallbackFcn(app, @SelectMuscleParamsFileButtonPushed, true);
+            app.SelectMuscleParamsFileButton.Position = [33 272 157 23];
+            app.SelectMuscleParamsFileButton.Text = 'Select Muscle Params File';
+
+            % Create UploadMuscleParamsButton
+            app.UploadMuscleParamsButton = uibutton(app.HighlevelcontrollersettingsPanel, 'push');
+            app.UploadMuscleParamsButton.ButtonPushedFcn = createCallbackFcn(app, @UploadMuscleParamsButtonPushed, true);
+            app.UploadMuscleParamsButton.Position = [33 229 139 23];
+            app.UploadMuscleParamsButton.Text = 'Upload Muscle Params';
+
+            % Create applyassistanceCheckBox
+            app.applyassistanceCheckBox = uicheckbox(app.HighlevelcontrollersettingsPanel);
+            app.applyassistanceCheckBox.ValueChangedFcn = createCallbackFcn(app, @applyassistanceCheckBoxValueChanged, true);
+            app.applyassistanceCheckBox.Text = 'apply assistance';
+            app.applyassistanceCheckBox.Position = [188 230 111 22];
+
+            % Create actdyn_typeDropDownLabel
+            app.actdyn_typeDropDownLabel = uilabel(app.HighlevelcontrollersettingsPanel);
+            app.actdyn_typeDropDownLabel.HorizontalAlignment = 'right';
+            app.actdyn_typeDropDownLabel.Position = [30 66 70 22];
+            app.actdyn_typeDropDownLabel.Text = 'actdyn_type';
+
+            % Create actdyn_typeDropDown
+            app.actdyn_typeDropDown = uidropdown(app.HighlevelcontrollersettingsPanel);
+            app.actdyn_typeDropDown.Items = {'Simple', 'DeGroote2016'};
+            app.actdyn_typeDropDown.ValueChangedFcn = createCallbackFcn(app, @actdyn_typeDropDownValueChanged, true);
+            app.actdyn_typeDropDown.Position = [115 66 100 22];
+            app.actdyn_typeDropDown.Value = 'Simple';
+
+            % Create PercentageAssistanceEditFieldLabel
+            app.PercentageAssistanceEditFieldLabel = uilabel(app.HighlevelcontrollersettingsPanel);
+            app.PercentageAssistanceEditFieldLabel.HorizontalAlignment = 'right';
+            app.PercentageAssistanceEditFieldLabel.Position = [26 135 127 22];
+            app.PercentageAssistanceEditFieldLabel.Text = 'Percentage Assistance';
+
+            % Create PercentageAssistanceEditField
+            app.PercentageAssistanceEditField = uieditfield(app.HighlevelcontrollersettingsPanel, 'numeric');
+            app.PercentageAssistanceEditField.ValueChangedFcn = createCallbackFcn(app, @PercentageAssistanceEditFieldValueChanged, true);
+            app.PercentageAssistanceEditField.Position = [168 135 100 22];
+
+            % Create MinimalTorqueEditFieldLabel
+            app.MinimalTorqueEditFieldLabel = uilabel(app.HighlevelcontrollersettingsPanel);
+            app.MinimalTorqueEditFieldLabel.HorizontalAlignment = 'right';
+            app.MinimalTorqueEditFieldLabel.Position = [26 98 86 22];
+            app.MinimalTorqueEditFieldLabel.Text = 'Minimal Torque';
+
+            % Create MinimalTorqueEditField
+            app.MinimalTorqueEditField = uieditfield(app.HighlevelcontrollersettingsPanel, 'numeric');
+            app.MinimalTorqueEditField.ValueChangedFcn = createCallbackFcn(app, @MinimalTorqueEditFieldValueChanged, true);
+            app.MinimalTorqueEditField.Position = [127 98 100 22];
+
+            % Create bexoEditFieldLabel
+            app.bexoEditFieldLabel = uilabel(app.HighlevelcontrollersettingsPanel);
+            app.bexoEditFieldLabel.HorizontalAlignment = 'right';
+            app.bexoEditFieldLabel.Position = [26 32 31 22];
+            app.bexoEditFieldLabel.Text = 'bexo';
+
+            % Create bexoEditField
+            app.bexoEditField = uieditfield(app.HighlevelcontrollersettingsPanel, 'numeric');
+            app.bexoEditField.ValueChangedFcn = createCallbackFcn(app, @bexoEditFieldValueChanged, true);
+            app.bexoEditField.Position = [72 32 100 22];
+
+            % Create cutoff_velEditFieldLabel
+            app.cutoff_velEditFieldLabel = uilabel(app.HighlevelcontrollersettingsPanel);
+            app.cutoff_velEditFieldLabel.HorizontalAlignment = 'right';
+            app.cutoff_velEditFieldLabel.Position = [26 179 56 22];
+            app.cutoff_velEditFieldLabel.Text = 'cutoff_vel';
+
+            % Create cutoff_velEditField
+            app.cutoff_velEditField = uieditfield(app.HighlevelcontrollersettingsPanel, 'numeric');
+            app.cutoff_velEditField.ValueChangedFcn = createCallbackFcn(app, @cutoff_velEditFieldValueChanged, true);
+            app.cutoff_velEditField.Position = [97 179 100 22];
+
+            % Create SelectControllerDropDownLabel
+            app.SelectControllerDropDownLabel = uilabel(app.UIFigure);
+            app.SelectControllerDropDownLabel.HorizontalAlignment = 'right';
+            app.SelectControllerDropDownLabel.Position = [70 333 94 22];
+            app.SelectControllerDropDownLabel.Text = 'Select Controller';
+
+            % Create SelectControllerDropDown
+            app.SelectControllerDropDown = uidropdown(app.UIFigure);
+            app.SelectControllerDropDown.Items = {'Minimal_Impedance', 'BiologicalMoment', 'AssistShortening'};
+            app.SelectControllerDropDown.ValueChangedFcn = createCallbackFcn(app, @SelectControllerDropDownValueChanged, true);
+            app.SelectControllerDropDown.Position = [175 333 129 22];
+            app.SelectControllerDropDown.Value = 'Minimal_Impedance';
+
+            % Create InitLowlevelcontrollerPanel
+            app.InitLowlevelcontrollerPanel = uipanel(app.UIFigure);
+            app.InitLowlevelcontrollerPanel.Title = 'Init Lowlevel controller';
+            app.InitLowlevelcontrollerPanel.Position = [30 621 1059 126];
+
+            % Create zeroLoadcellLButton
+            app.zeroLoadcellLButton = uibutton(app.InitLowlevelcontrollerPanel, 'push');
+            app.zeroLoadcellLButton.ButtonPushedFcn = createCallbackFcn(app, @zeroLoadcellLButtonPushed, true);
+            app.zeroLoadcellLButton.Position = [25 73 100 22];
+            app.zeroLoadcellLButton.Text = 'zero Loadcell  L';
+
+            % Create zeroloadcellRButton
+            app.zeroloadcellRButton = uibutton(app.InitLowlevelcontrollerPanel, 'push');
+            app.zeroloadcellRButton.ButtonPushedFcn = createCallbackFcn(app, @zeroloadcellRButtonPushed, true);
+            app.zeroloadcellRButton.Position = [25 27 100 22];
+            app.zeroloadcellRButton.Text = 'zero loadcell  R';
+
+            % Create zeroencoderLButton
+            app.zeroencoderLButton = uibutton(app.InitLowlevelcontrollerPanel, 'push');
+            app.zeroencoderLButton.ButtonPushedFcn = createCallbackFcn(app, @zeroencoderLButtonPushed, true);
+            app.zeroencoderLButton.Position = [164 74 100 22];
+            app.zeroencoderLButton.Text = 'zero encoder L';
+
+            % Create maxplantarflexLButton
+            app.maxplantarflexLButton = uibutton(app.InitLowlevelcontrollerPanel, 'push');
+            app.maxplantarflexLButton.ButtonPushedFcn = createCallbackFcn(app, @maxplantarflexLButtonPushed, true);
+            app.maxplantarflexLButton.Position = [305 74 106 22];
+            app.maxplantarflexLButton.Text = 'max plantarflex L';
+
+            % Create maxdorsiflexLButton
+            app.maxdorsiflexLButton = uibutton(app.InitLowlevelcontrollerPanel, 'push');
+            app.maxdorsiflexLButton.ButtonPushedFcn = createCallbackFcn(app, @maxdorsiflexLButtonPushed, true);
+            app.maxdorsiflexLButton.Position = [448 74 100 22];
+            app.maxdorsiflexLButton.Text = 'max dorsiflex L';
+
+            % Create zeroencoderRButton
+            app.zeroencoderRButton = uibutton(app.InitLowlevelcontrollerPanel, 'push');
+            app.zeroencoderRButton.ButtonPushedFcn = createCallbackFcn(app, @zeroencoderRButtonPushed, true);
+            app.zeroencoderRButton.Position = [164 28 100 22];
+            app.zeroencoderRButton.Text = 'zero encoder R';
+
+            % Create maxplantarflexRButton
+            app.maxplantarflexRButton = uibutton(app.InitLowlevelcontrollerPanel, 'push');
+            app.maxplantarflexRButton.ButtonPushedFcn = createCallbackFcn(app, @maxplantarflexRButtonPushed, true);
+            app.maxplantarflexRButton.Position = [304 28 108 22];
+            app.maxplantarflexRButton.Text = 'max plantarflex R';
+
+            % Create maxdorsiflexRButton
+            app.maxdorsiflexRButton = uibutton(app.InitLowlevelcontrollerPanel, 'push');
+            app.maxdorsiflexRButton.ButtonPushedFcn = createCallbackFcn(app, @maxdorsiflexRButtonPushed, true);
+            app.maxdorsiflexRButton.Position = [448 28 100 22];
+            app.maxdorsiflexRButton.Text = 'max dorsiflex R';
+
+            % Create enabledriveLCheckBox
+            app.enabledriveLCheckBox = uicheckbox(app.InitLowlevelcontrollerPanel);
+            app.enabledriveLCheckBox.ValueChangedFcn = createCallbackFcn(app, @enabledriveLCheckBoxValueChanged, true);
+            app.enabledriveLCheckBox.Text = 'enable drive L';
+            app.enabledriveLCheckBox.Position = [598 74 97 22];
+
+            % Create enablemotorvelocityLCheckBox
+            app.enablemotorvelocityLCheckBox = uicheckbox(app.InitLowlevelcontrollerPanel);
+            app.enablemotorvelocityLCheckBox.ValueChangedFcn = createCallbackFcn(app, @enablemotorvelocityLCheckBoxValueChanged, true);
+            app.enablemotorvelocityLCheckBox.Text = 'enable motor velocity L';
+            app.enablemotorvelocityLCheckBox.Position = [735 74 145 22];
+
+            % Create enabledriveRCheckBox
+            app.enabledriveRCheckBox = uicheckbox(app.InitLowlevelcontrollerPanel);
+            app.enabledriveRCheckBox.ValueChangedFcn = createCallbackFcn(app, @enabledriveRCheckBoxValueChanged, true);
+            app.enabledriveRCheckBox.Text = 'enable drive R';
+            app.enabledriveRCheckBox.Position = [598 29 99 22];
+
+            % Create enablemotorvelocityRCheckBox
+            app.enablemotorvelocityRCheckBox = uicheckbox(app.InitLowlevelcontrollerPanel);
+            app.enablemotorvelocityRCheckBox.ValueChangedFcn = createCallbackFcn(app, @enablemotorvelocityRCheckBoxValueChanged, true);
+            app.enablemotorvelocityRCheckBox.Text = 'enable motor velocity R';
+            app.enablemotorvelocityRCheckBox.Position = [735 29 147 22];
+
+            % Create durationzerosSliderLabel
+            app.durationzerosSliderLabel = uilabel(app.InitLowlevelcontrollerPanel);
+            app.durationzerosSliderLabel.HorizontalAlignment = 'right';
+            app.durationzerosSliderLabel.Position = [924 74 91 22];
+            app.durationzerosSliderLabel.Text = 'duration zero [s]';
+
+            % Create durationzerosSlider
+            app.durationzerosSlider = uislider(app.InitLowlevelcontrollerPanel);
+            app.durationzerosSlider.Limits = [0 5];
+            app.durationzerosSlider.ValueChangedFcn = createCallbackFcn(app, @durationzerosSliderValueChanged, true);
+            app.durationzerosSlider.Step = 1;
+            app.durationzerosSlider.Position = [929 61 114 3];
+            app.durationzerosSlider.Value = 2;
+
+            % Create enabledatacollectionCheckBox
+            app.enabledatacollectionCheckBox = uicheckbox(app.UIFigure);
+            app.enabledatacollectionCheckBox.ValueChangedFcn = createCallbackFcn(app, @enabledatacollectionCheckBoxValueChanged, true);
+            app.enabledatacollectionCheckBox.Text = 'enable data collection';
+            app.enabledatacollectionCheckBox.Position = [40 566 137 22];
+
+            % Create maxTorqueSliderLabel
+            app.maxTorqueSliderLabel = uilabel(app.UIFigure);
+            app.maxTorqueSliderLabel.HorizontalAlignment = 'right';
+            app.maxTorqueSliderLabel.Position = [131 516 67 22];
+            app.maxTorqueSliderLabel.Text = 'max Torque';
+
+            % Create maxTorqueSlider
+            app.maxTorqueSlider = uislider(app.UIFigure);
+            app.maxTorqueSlider.Limits = [0 60];
+            app.maxTorqueSlider.ValueChangedFcn = createCallbackFcn(app, @maxTorqueSliderValueChanged, true);
+            app.maxTorqueSlider.MinorTicks = [0 5 10 15 20 25 30 35 40 45 50 55 60];
+            app.maxTorqueSlider.Step = 5;
+            app.maxTorqueSlider.Position = [52 504 224 3];
+            app.maxTorqueSlider.Value = 30;
+
+            % Create TextArea
+            app.TextArea = uitextarea(app.UIFigure);
+            app.TextArea.Position = [605 431 484 182];
+
+            % Show the figure after all components are created
+            app.UIFigure.Visible = 'on';
+        end
+    end
+
+    % App creation and deletion
+    methods (Access = public)
+
+        % Construct app
+        function app = Assist_Shortening_GUI_exported
+
+            % Create UIFigure and components
+            createComponents(app)
+
+            % Register the app with App Designer
+            registerApp(app, app.UIFigure)
+
+            % Execute the startup function
+            runStartupFcn(app, @startupFcn)
+
+            if nargout == 0
+                clear app
+            end
+        end
+
+        % Code that executes before app deletion
+        function delete(app)
+
+            % Delete UIFigure when app is deleted
+            delete(app.UIFigure)
+        end
+    end
+end

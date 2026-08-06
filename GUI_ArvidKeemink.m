@@ -29,7 +29,7 @@ length_target = 20*8; %20 vars, 8 bytes per double = 160 bytes
 dataStream_target = TwinCAT.Ads.AdsStream(length_target);
 binRead_target = TwinCAT.Ads.AdsBinaryReader(dataStream_target);
 dataRead = zeros(length_target/8);
-loggerstate = true;
+loggerstate = true;ads.target(1).name
 %% Send targets
 % Knee
 ecmp = 'Exosoft_Controller.ModelParameters.' ;

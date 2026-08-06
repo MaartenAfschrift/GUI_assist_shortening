@@ -62,6 +62,29 @@ Continuous-value writes:
 
 For your own project, replace names and keep the same semantics (pulse vs value).
 
+### 3.3 Using `.tmc` as source of truth (recommended)
+
+For generated TwinCAT modules, build ADS paths from:
+
+`<ModuleName>.<DataArea>.<SymbolName>`
+
+For `jlo_assist_short_explicit_clean_Lon.tmc`:
+- Module: `jlo_assist_short_explicit_clean_Lonit`
+- DataAreas include: `Output`, `ModelParameters`, `BlockIO`
+
+Stable default policy:
+- **Read** from `Output`
+- **Write** tunables in `ModelParameters`
+- Avoid `BlockIO` in baseline GUI (internal names can change more across rebuilds)
+
+Example from your model:
+- `exo_torque_desired_highlevel_r` is in `Output`  
+  -> `jlo_assist_short_explicit_clean_Lonit.Output.exo_torque_desired_highlevel_r`
+- `exo_torque_desired_r` is in `BlockIO`  
+  -> `jlo_assist_short_explicit_clean_Lonit.BlockIO.exo_torque_desired_r`
+
+If you need to visualize `exo_torque_desired_r` with the stable policy, expose it to `Output` in Simulink/codegen and then read it from `Output`.
+
 ## 4. Build the App Designer UI
 
 Create a new app and add:
@@ -185,4 +208,3 @@ Use this only after local flow works:
 2. Replace `amsNetId` with target net ID.
 3. Open required ADS/TwinCAT network access.
 4. Add reconnect behavior (retry/backoff) if long-running field use is needed.
-
