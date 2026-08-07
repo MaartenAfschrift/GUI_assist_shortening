@@ -3,6 +3,8 @@ classdef MockAdsClient < handle
         handleToSymbol
         storedValues
         startTic
+        injectHandleFailure = true
+        failHandleToken = 'ModelParameters.MinimalTorque'
     end
 
     methods
@@ -17,6 +19,11 @@ classdef MockAdsClient < handle
         end
 
         function handle = CreateVariableHandle(obj, symbolName)
+            % ponytail: deterministic mock failure to test handle-validation path
+            if obj.injectHandleFailure && contains(char(string(symbolName)), obj.failHandleToken)
+                error('MockAdsClient:InjectedHandleFailure', ...
+                    'Injected handle creation failure for %s', char(string(symbolName)));
+            end
             handle = obj.normalizeKey(symbolName);
             obj.handleToSymbol(handle) = handle;
             if ~isKey(obj.storedValues, handle)
@@ -26,8 +33,12 @@ classdef MockAdsClient < handle
 
         function Read(obj, handle, stream)
             symbol = obj.resolveSymbol(handle);
+            if contains(symbol, 'gui_output')
+                obj.writeDoublesToStream(stream, obj.mockGuiOutputVector());
+                return;
+            end
             value = obj.mockSignalValue(symbol);
-            obj.writeDoubleToStream(stream, value);
+            obj.writeDoublesToStream(stream, value);
         end
 
         function WriteAny(obj, handle, dataBytes)
@@ -93,9 +104,29 @@ classdef MockAdsClient < handle
             end
         end
 
-        function writeDoubleToStream(~, stream, value)
+        function values = mockGuiOutputVector(obj)
+            % ponytail: keep one vector builder to mirror gui_output packing order
+            t = toc(obj.startTic);
+            values = [
+                35 + 8 * sin(2 * pi * 0.7 * t);             % LeftExoDesiredMoment
+                35 + 8 * sin(2 * pi * 0.7 * t + pi);        % RightExoDesiredMoment
+                20 + 5 * sin(2 * pi * 0.7 * t + 0.4);       % LeftBioMoment
+                20 + 5 * sin(2 * pi * 0.7 * t + pi + 0.4);  % RightBioMoment
+                12 + 3 * sin(2 * pi * 0.7 * t + 0.9);       % LeftAssistShortMoment
+                12 + 3 * sin(2 * pi * 0.7 * t + pi + 0.9);  % RightAssistShortMoment
+                6 + 1.2 * sin(2 * pi * 0.9 * t);            % LeftSolMoment
+                8 + 1.5 * sin(2 * pi * 0.9 * t + 0.8);      % LeftGasMoment
+                -4 + 0.9 * sin(2 * pi * 0.9 * t + 1.5);     % LeftTibMoment
+                6 + 1.2 * sin(2 * pi * 0.9 * t + pi);       % RightSolMoment
+                8 + 1.5 * sin(2 * pi * 0.9 * t + pi + 0.8); % RightGasMoment
+                -4 + 0.9 * sin(2 * pi * 0.9 * t + pi + 1.5);% RightTibMoment
+                1                                               % ControlMode
+            ];
+        end
+
+        function writeDoublesToStream(~, stream, value)
             stream.Position = 0;
-            bytes = typecast(double(value), 'uint8');
+            bytes = typecast(double(value(:))', 'uint8');
             netBytes = NET.convertArray(bytes, 'System.Byte');
             stream.Write(netBytes, 0, numel(bytes));
             stream.Position = 0;
