@@ -1,13 +1,14 @@
 # Build your own TwinCAT MATLAB GUI (App Designer, local-first)
 
-This guide shows how to build a MATLAB App Designer GUI for a TwinCAT-controlled project, based on the behavior in `GUI_ArvidKeemink.m` but without the custom script-style UI.
+This guide shows how to build a MATLAB App Designer GUI for a TwinCAT-controlled project, based on the behavior in `GUI_ArvidKeemink.m` but without the custom script-style UI. The current GUI layout has four live plots, a text log, and three control areas.
 
 ## 1. What you will build
 
 - App Designer GUI with:
-  - status readout (state/error/angles/torque),
+  - four plots: Left/Right Joint Moments and Left/Right Muscle Moments,
+  - a text log/status area,
   - buttons for trigger commands (pulse 1 -> 0),
-  - sliders for continuous values.
+  - sliders and numeric fields for continuous values.
 - ADS connection to TwinCAT via `TwinCAT.Ads.dll`.
 - Timer loop (~10 Hz) to read output data and refresh labels.
 
@@ -23,10 +24,10 @@ This guide shows how to build a MATLAB App Designer GUI for a TwinCAT-controlled
 
 Do this before UI work.
 
-### 3.1 Read block (from existing GUI)
+### 3.1 Read block (from current GUI)
 
-- Source block name: `Exosoft_Controller.Output.gui_out`
-- Existing code assumes `20` doubles (`20*8` bytes).
+- Source block name: `...Output.gui_output`
+- Current code assumes `13` doubles (`13*8` bytes).
 
 Create your own table for your project:
 
@@ -94,15 +95,24 @@ If you need to visualize `exo_torque_desired_r` with the stable policy, expose i
 
 Create a new app and add:
 
-1. A panel per subsystem (e.g. Knee, Ankle).
-2. In each panel:
-   - buttons: Disable, Pos Hold, Torque, Slack, Error Ack, Hybrid
-   - sliders: torque reference and offset
-   - labels for state/error/angles/torque
-3. One General panel:
-   - Disable all, All slack, Recalibrate, Logger toggle
+1. **Four axes** for live plots:
+   - Left Joint Moments
+   - Right Joint Moments
+   - Left Muscle Moments
+   - Right Muscle Moments
+2. **Low level controller panel** with:
+   - zero loadcell / zero encoder buttons
+   - max plantarflex / max dorsiflex buttons
+   - enable drive and enable motor velocity checkboxes
+   - duration-zero slider
+3. **High level controller panel** with:
+   - controller drop-down
+   - apply assistance checkbox
+   - percentage assistance, minimal torque, bexo, and cutoff velocity fields
+   - muscle parameter file select/upload buttons
+4. **Text area** for runtime messages and warnings.
 
-Keep it minimal first: build one panel (Knee) and duplicate for others.
+Keep it minimal first: build the four plots and the two control panels, then add the file upload and text log.
 
 ## 5. Paste minimal App Designer backend skeleton
 
@@ -114,7 +124,7 @@ properties (Access = private)
     sourceHandle
     readStream
     readBin
-    readLength = 20 * 8;   % bytes, adjust to your read block
+    readLength = 13 * 8;   % bytes, adjust to your read block
     adsPort = 350
     amsNetId = "172.18.234.64.1.1"  % replace
     writeMap struct
