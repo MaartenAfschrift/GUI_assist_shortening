@@ -1,10 +1,15 @@
 %% Minimal example test ADS connection
 %--------------------------------------
 
-% user inputs
-Simulink_source_name = 'Exosoft_Controller';
+% info high level controller
+Simulink_source_name = 'My_HighLevelController'; % name simulink model
 test_modelparam = 'Constant25_Value'; % this is sample time in the controller
 test_output = 'exo_torque_desired_highlevel_l';
+
+% % info lowlevel controller
+% Simulink_source_name = 'MyLowlevelController'; % name simulink model
+% test_modelparam = 'Constant4_Value'; % this is sample time in the controller
+% test_output = 'drive_target_vel_l';
 
 % ADS
 asm = NET.addAssembly('C:\TwinCAT\AdsApi\.NET\v4.0.30319\TwinCAT.Ads.dll');
@@ -55,7 +60,7 @@ end
 
 try
     % try to send value 1
-    data_bytes = typecast(double(10), 'uint8');
+    data_bytes = typecast(double(1), 'uint8');
     tcClient.WriteAny(ads_target_handle,data_bytes);
     disp('Successfully wrote parameter');
 catch e
@@ -63,7 +68,13 @@ catch e
     warning(e.message);
 end
 
+%% test push button connection
 
+% % push button implementation
+% tcClient.WriteAny(ads_target_handle,typecast(double(1), 'uint8'));
+% pause(10);
+% data_bytes = typecast(double(0), 'uint8');
+% tcClient.WriteAny(ads_target_handle,typecast(double(0), 'uint8'));
 
 
 
