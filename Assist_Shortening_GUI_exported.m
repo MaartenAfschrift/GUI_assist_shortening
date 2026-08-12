@@ -45,8 +45,8 @@ classdef Assist_Shortening_GUI_exported < matlab.apps.AppBase
         KdEditFieldLabel               matlab.ui.control.Label
         KpEditField                    matlab.ui.control.NumericEditField
         KpEditFieldLabel               matlab.ui.control.Label
-        UIAxes_2                       matlab.ui.control.UIAxes
-        UIAxes                         matlab.ui.control.UIAxes
+        Muscle_Act_right               matlab.ui.control.UIAxes
+        Muscle_Act_left                matlab.ui.control.UIAxes
         RightJointMoments              matlab.ui.control.UIAxes
         LeftJointMoments               matlab.ui.control.UIAxes
         RightMuscleMoments             matlab.ui.control.UIAxes
@@ -76,7 +76,7 @@ classdef Assist_Shortening_GUI_exported < matlab.apps.AppBase
         dt_zero_sensors  = 2; % duration time window to get zero value sensors
 
         % specify number of doubles in gui_output (for visualisation)
-        number_gui_outputs = 13
+        number_gui_outputs = 19
         gui_data_headers = {'LeftExoDesiredMoment',...      % 1
             'RightExoDesiredMoment',...                     % 2
             'LeftBioMoment',...                             % 3
@@ -89,18 +89,23 @@ classdef Assist_Shortening_GUI_exported < matlab.apps.AppBase
             'RightSolMoment', ...                           % 10
             'RightGasMoment', ...                           % 11
             'RightTibMoment', ...                           % 12
-            'ControlMode'};                                 % 13
+            'ControlMode',...                               % 13
+            'Soleus_act_l',...                              % 14
+            'Gastroc_act_l',...                             % 15
+            'Tibialis_act_l',...                            % 16
+            'Soleus_act_r',...                              % 17
+            'Gastroc_act_r',...                             % 18
+            'Tibialis_act_r'};                              % 19
 
-        number_highlevel_param_outputs = 8;
+        number_highlevel_param_outputs = 7;
         highlevel_params_headers = {
             'MinimalTorque',...                             % 1
             'ApplyAssistance',...                           % 2
-            'perc_assistance_left',...                      % 3
-            'perc_assistance_right',...                     % 4
-            'b_exo',...                                     % 5
-            'actdyn_selection',...                          % 6
-            'cutoff_vel',...                                % 7
-            'ControllerMode'};                              % 8
+            'perc_assistance',...                           % 3
+            'b_exo',...                                     % 4
+            'actdyn_selection',...                          % 5
+            'cutoff_vel',...                                % 6
+            'ControllerMode'};                              % 7
 
         number_lowlevel_param_outputs = 10;
         lowlevel_params_header = {'max_torque',...          % 1
@@ -154,6 +159,22 @@ classdef Assist_Shortening_GUI_exported < matlab.apps.AppBase
         rightTauStartTic
         rightTauMaxPoints = 50
 
+        % figure left muscle activations
+        leftActSolPlot
+        leftActGasPlot
+        leftActTibPlot
+        leftActStartTic
+        leftActMaxPoints = 50
+
+        % figure right muscle activations
+        rightActSolPlot
+        rightActGasPlot
+        rightActTibPlot
+        rightActStartTic
+        rightActMaxPoints = 50
+
+        
+
         % Vector-read path properties
         GuiOutputHandle
         GuiOutputdata_target
@@ -206,11 +227,23 @@ classdef Assist_Shortening_GUI_exported < matlab.apps.AppBase
                 RightGasMoment = app.gui_data(strcmp(app.gui_data_headers,'RightGasMoment'));
                 RightTibMoment = app.gui_data(strcmp(app.gui_data_headers,'RightTibMoment'));
 
+                LeftSoleusAct = app.gui_data(strcmp(app.gui_data_headers,'Soleus_act_l'));
+                LeftGastrocAct = app.gui_data(strcmp(app.gui_data_headers,'Gastroc_act_l'));
+                LeftTibialisAct = app.gui_data(strcmp(app.gui_data_headers,'Tibialis_act_l'));
+                RightSoleusAct = app.gui_data(strcmp(app.gui_data_headers,'Soleus_act_r'));
+                RightGastrocAct = app.gui_data(strcmp(app.gui_data_headers,'Gastroc_act_r'));
+                RightTibialisAct = app.gui_data(strcmp(app.gui_data_headers,'Tibialis_act_r'));
+
+
+
+
                 % update plots
                 app.updateLeftJointPlot(LeftExoDesiredMoment, LeftBioMoment, LeftAssistShortMoment);
                 app.updateRightJointPlot(RightExoDesiredMoment, RightBioMoment, RightAssistShortMoment);
                 app.updateLeftMuscleTauPlot(LeftSolMoment, LeftGasMoment, LeftTibMoment);
                 app.updateRightMuscleTauPlot(RightSolMoment, RightGasMoment, RightTibMoment);
+                app.updateLeftMuscleActPlot(LeftSoleusAct, LeftGastrocAct, LeftTibialisAct);
+                app.updateRightMuscleActPlot(RightSoleusAct, RightGastrocAct, RightTibialisAct);
                 drawnow limitrate nocallbacks
 
             catch ME
@@ -403,6 +436,72 @@ classdef Assist_Shortening_GUI_exported < matlab.apps.AppBase
             end
         end
 
+        function initLeftMuscleActPlot(app)
+            cla(app.Muscle_Act_left);
+            grid(app.Muscle_Act_left, 'on');
+            hold(app.Muscle_Act_left, 'on');
+            app.leftActSolPlot = animatedline(app.Muscle_Act_left, ...
+                'Color', [0 0.4470 0.7410], ...
+                'LineWidth', 1.25, ...
+                'MaximumNumPoints', app.leftActMaxPoints);
+            app.leftActGasPlot = animatedline(app.Muscle_Act_left, ...
+                'Color', [0.8500 0.3250 0.0980], ...
+                'LineWidth', 1.25, ...
+                'MaximumNumPoints', app.leftActMaxPoints);
+            app.leftActTibPlot = animatedline(app.Muscle_Act_left, ...
+                'Color', [0.4660 0.6740 0.1880], ...
+                'LineWidth', 1.25, ...
+                'MaximumNumPoints', app.leftActMaxPoints);
+            legend(app.Muscle_Act_left, {'Sol','Gas','Tib'}, 'Location', 'best');
+            ylim(app.Muscle_Act_left, [0, 1]);
+            app.leftActStartTic = tic;
+        end
+
+        function updateLeftMuscleActPlot(app, leftActSol, leftActGas, leftActTib)
+            t = toc(app.leftActStartTic);
+            addpoints(app.leftActSolPlot, t, leftActSol);
+            addpoints(app.leftActGasPlot, t, leftActGas);
+            addpoints(app.leftActTibPlot, t, leftActTib);
+            if t > app.JointWindowSec
+                xlim(app.Muscle_Act_left, [t - app.JointWindowSec, t]);
+            else
+                xlim(app.Muscle_Act_left, [0, app.JointWindowSec]);
+            end
+        end
+
+        function initRightMuscleActPlot(app)
+            cla(app.Muscle_Act_right);
+            grid(app.Muscle_Act_right, 'on');
+            hold(app.Muscle_Act_right, 'on');
+            app.rightActSolPlot = animatedline(app.Muscle_Act_right, ...
+                'Color', [0 0.4470 0.7410], ...
+                'LineWidth', 1.25, ...
+                'MaximumNumPoints', app.rightActMaxPoints);
+            app.rightActGasPlot = animatedline(app.Muscle_Act_right, ...
+                'Color', [0.8500 0.3250 0.0980], ...
+                'LineWidth', 1.25, ...
+                'MaximumNumPoints', app.rightActMaxPoints);
+            app.rightActTibPlot = animatedline(app.Muscle_Act_right, ...
+                'Color', [0.4660 0.6740 0.1880], ...
+                'LineWidth', 1.25, ...
+                'MaximumNumPoints', app.rightActMaxPoints);
+            legend(app.Muscle_Act_right, {'Sol','Gas','Tib'}, 'Location', 'best');
+            ylim(app.Muscle_Act_right, [0, 1]);
+            app.rightActStartTic = tic;
+        end
+
+        function updateRightMuscleActPlot(app, rightActSol, rightActGas, rightActTib)
+            t = toc(app.rightActStartTic);
+            addpoints(app.rightActSolPlot, t, rightActSol);
+            addpoints(app.rightActGasPlot, t, rightActGas);
+            addpoints(app.rightActTibPlot, t, rightActTib);
+            if t > app.JointWindowSec
+                xlim(app.Muscle_Act_right, [t - app.JointWindowSec, t]);
+            else
+                xlim(app.Muscle_Act_right, [0, app.JointWindowSec]);
+            end
+        end
+
 
     end
 
@@ -422,6 +521,7 @@ classdef Assist_Shortening_GUI_exported < matlab.apps.AppBase
             
             % add twincat Ads
             try
+                app.number_gui_outputs = numel(app.gui_data_headers);
                 NET.addAssembly(app.TwinCatAdsPath);
                 % import ADS
                 import TwinCAT.Ads.*
@@ -526,8 +626,8 @@ classdef Assist_Shortening_GUI_exported < matlab.apps.AppBase
                 'pd_kd_left', [base_name_low 'ManualKd_Value'], 'lowlevel_params',app.tcClient_lowlevel; ...
                 'pd_kd_right', [base_name_low 'ManualKd1_Value'], 'lowlevel_params',app.tcClient_lowlevel; ...
 
-                'HighLevelParamHandle', [base_name_output 'highlevel_params_output'], 'highlevel_params',app.tcClient_highlevel; ...
-                'lowlevel_params_output', [base_name_low 'lowlevel_params_output'], 'lowlevel_params',app.tcClient_lowlevel ...;
+                'HighLevelParamHandle', [base_name_output 'highlevel_params'], 'highlevel_params',app.tcClient_highlevel; ...
+                'lowlevel_params_output', [base_name_low 'lowlevel_params'], 'lowlevel_params',app.tcClient_lowlevel ...;
                 };
             app.writeMap = struct;
             app.GuiOutputHandle = [];
@@ -570,12 +670,17 @@ classdef Assist_Shortening_GUI_exported < matlab.apps.AppBase
             app.rightJointMaxPoints = app.JointWindowSec * app.sampling_frequency_gui;
             app.leftTauMaxPoints = app.JointWindowSec * app.sampling_frequency_gui;
             app.rightTauMaxPoints = app.JointWindowSec * app.sampling_frequency_gui;
+            app.leftActMaxPoints = app.JointWindowSec * app.sampling_frequency_gui;
+            app.rightActMaxPoints = app.JointWindowSec * app.sampling_frequency_gui;
+
 
             % init the plot
             app.initLeftJointPlot();
             app.initRightJointPlot();
             app.initLeftMuscleTauPlot();
             app.initRightMuscleTauPlot();
+            app.initLeftMuscleActPlot();
+            app.initRightMuscleActPlot();
 
 
             % set sampling frequency of the GUI
@@ -852,10 +957,11 @@ classdef Assist_Shortening_GUI_exported < matlab.apps.AppBase
             app.HighLevelParamdata_target.Position = 0;
 
             % print all the highlevel param data
+            app.TextArea.Value = [app.TextArea.Value; { '  '}];
             app.TextArea.Value = [app.TextArea.Value; { 'printing current highlevel controller parameters'}];
             for idata = 1:length(app.highlevel_params_headers)
-                app.TextArea.Value = [app.TextArea.Value; { ' ' app.highlevel_params_headers{idata}, ' ',...
-                    num2str(app.HighLevelParam_data(idata))}];
+                app.TextArea.Value = [app.TextArea.Value; {[ ' ' app.highlevel_params_headers{idata}, ' ',...
+                    num2str(app.HighLevelParam_data(idata))]}];
             end
 
             % read the lowlevel param data
@@ -907,19 +1013,19 @@ classdef Assist_Shortening_GUI_exported < matlab.apps.AppBase
             app.RightJointMoments.Toolbar.Visible = 'off';
             app.RightJointMoments.Position = [679 201 300 185];
 
-            % Create UIAxes
-            app.UIAxes = uiaxes(app.UIFigure);
-            xlabel(app.UIAxes, 'Time [s]')
-            ylabel(app.UIAxes, 'Muscle activation')
-            zlabel(app.UIAxes, 'Z')
-            app.UIAxes.Position = [351 17 300 185];
+            % Create Muscle_Act_left
+            app.Muscle_Act_left = uiaxes(app.UIFigure);
+            xlabel(app.Muscle_Act_left, 'Time [s]')
+            ylabel(app.Muscle_Act_left, 'Muscle activation')
+            zlabel(app.Muscle_Act_left, 'Z')
+            app.Muscle_Act_left.Position = [351 17 300 185];
 
-            % Create UIAxes_2
-            app.UIAxes_2 = uiaxes(app.UIFigure);
-            xlabel(app.UIAxes_2, 'Time [s]')
-            ylabel(app.UIAxes_2, 'muscle activation')
-            zlabel(app.UIAxes_2, 'Z')
-            app.UIAxes_2.Position = [679 17 300 185];
+            % Create Muscle_Act_right
+            app.Muscle_Act_right = uiaxes(app.UIFigure);
+            xlabel(app.Muscle_Act_right, 'Time [s]')
+            ylabel(app.Muscle_Act_right, 'muscle activation')
+            zlabel(app.Muscle_Act_right, 'Z')
+            app.Muscle_Act_right.Position = [679 17 300 185];
 
             % Create LowlevelcontrollersettingsPanel
             app.LowlevelcontrollersettingsPanel = uipanel(app.UIFigure);

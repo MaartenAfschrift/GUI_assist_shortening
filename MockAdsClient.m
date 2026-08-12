@@ -123,7 +123,13 @@ classdef MockAdsClient < handle
                 6 + 1.2 * sin(2 * pi * 0.9 * t + pi);       % RightSolMoment
                 8 + 1.5 * sin(2 * pi * 0.9 * t + pi + 0.8); % RightGasMoment
                 -4 + 0.9 * sin(2 * pi * 0.9 * t + pi + 1.5);% RightTibMoment
-                1                                               % ControlMode
+                1;                                              % ControlMode
+                0.45 + 0.10 * sin(2 * pi * 0.9 * t + 0.0);    % Soleus_act_l
+                0.40 + 0.12 * sin(2 * pi * 0.9 * t + 0.5);    % Gastroc_act_l
+                0.35 + 0.08 * sin(2 * pi * 0.9 * t + 1.0);    % Tibialis_act_l
+                0.45 + 0.10 * sin(2 * pi * 0.9 * t + pi);      % Soleus_act_r
+                0.40 + 0.12 * sin(2 * pi * 0.9 * t + pi + 0.5);% Gastroc_act_r
+                0.35 + 0.08 * sin(2 * pi * 0.9 * t + pi + 1.0) % Tibialis_act_r
             ];
         end
 
@@ -131,8 +137,7 @@ classdef MockAdsClient < handle
             values = [
                 obj.getStoredOrDefault('ModelParameters.MinimalTorque_Value', 2.0);       % MinimalTorque
                 obj.getStoredOrDefault('ModelParameters.ApplyAssistance_Value', 1.0);     % ApplyAssistance
-                obj.getStoredOrDefault('ModelParameters.PercentageAssistance_Value', 0.3);% perc_assistance_left
-                obj.getStoredOrDefault('ModelParameters.PercentageAssistance_Value', 0.3);% perc_assistance_right
+                obj.getStoredOrDefault('ModelParameters.PercentageAssistance_Value', 0.3);% perc_assistance
                 obj.getStoredOrDefault('ModelParameters.bexo_Value', 0.05);               % b_exo
                 obj.getStoredOrDefault('ModelParameters.ActDyn_mode_Value', 1.0);         % actdyn_selection
                 obj.getStoredOrDefault('ModelParameters.cutoff_vel_Value', 2.0);          % cutoff_vel
