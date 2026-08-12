@@ -3,11 +3,10 @@ classdef Assist_Shortening_GUI_exported < matlab.apps.AppBase
     % Properties that correspond to app components
     properties (Access = public)
         UIFigure                       matlab.ui.Figure
+        PrintControlParametersButton   matlab.ui.control.Button
         TextArea                       matlab.ui.control.TextArea
         enabledatacollectionCheckBox   matlab.ui.control.CheckBox
         InitLowlevelcontrollerPanel    matlab.ui.container.Panel
-        durationzeroEditField          matlab.ui.control.NumericEditField
-        durationzeroEditFieldLabel     matlab.ui.control.Label
         enablemotorvelocityRCheckBox   matlab.ui.control.CheckBox
         enabledriveRCheckBox           matlab.ui.control.CheckBox
         enablemotorvelocityLCheckBox   matlab.ui.control.CheckBox
@@ -37,6 +36,8 @@ classdef Assist_Shortening_GUI_exported < matlab.apps.AppBase
         UploadParamsButton             matlab.ui.control.Button
         SetParamsFileButton            matlab.ui.control.Button
         LowlevelcontrollersettingsPanel  matlab.ui.container.Panel
+        durationzeroEditField          matlab.ui.control.NumericEditField
+        durationzeroEditFieldLabel     matlab.ui.control.Label
         MaxTorqueEditField             matlab.ui.control.NumericEditField
         MaxTorqueEditFieldLabel        matlab.ui.control.Label
         PdcontrollerdesiredtorquetrackingLabel  matlab.ui.control.Label
@@ -44,6 +45,8 @@ classdef Assist_Shortening_GUI_exported < matlab.apps.AppBase
         KdEditFieldLabel               matlab.ui.control.Label
         KpEditField                    matlab.ui.control.NumericEditField
         KpEditFieldLabel               matlab.ui.control.Label
+        UIAxes_2                       matlab.ui.control.UIAxes
+        UIAxes                         matlab.ui.control.UIAxes
         RightJointMoments              matlab.ui.control.UIAxes
         LeftJointMoments               matlab.ui.control.UIAxes
         RightMuscleMoments             matlab.ui.control.UIAxes
@@ -88,13 +91,39 @@ classdef Assist_Shortening_GUI_exported < matlab.apps.AppBase
             'RightTibMoment', ...                           % 12
             'ControlMode'};                                 % 13
 
+        number_highlevel_param_outputs = 8;
+        highlevel_params_headers = {
+            'MinimalTorque',...                             % 1
+            'ApplyAssistance',...                           % 2
+            'perc_assistance_left',...                      % 3
+            'perc_assistance_right',...                     % 4
+            'b_exo',...                                     % 5
+            'actdyn_selection',...                          % 6
+            'cutoff_vel',...                                % 7
+            'ControllerMode'};                              % 8
+
+        number_lowlevel_param_outputs = 10;
+        lowlevel_params_header = {'max_torque',...          % 1
+            'enable_drives_left',...                        % 2
+            'enable_drives_right',...                       % 3
+            'enable_motor_velocity_left',...                % 4
+            'enable_motor_velocity_right',...               % 5
+            'enable_data_collection',...                    % 6
+            'pd_kp_left',...                                % 7
+            'pd_kp_right',...                               % 8
+            'pd_kd_left',...                                % 9
+            'pd_kd_right'};                                 % 10
+
 
         % variables specific for this program
         muscle_params_file = ''; % file with the calibrated muscle parameters
         headers_muscle_params = { ...
-            'Gastroc_lmOpt', 'Gastroc_Atendon', 'Gastroc_tau_act', 'Gastroc_tau_deact', 'Gastroc_scale_emg', ...
-            'Soleus_lmOpt', 'Soleus_Atendon', 'Soleus_tau_act', 'Soleus_tau_deact', 'Soleus_scale_emg', ...
-            'Tibialis_lmOpt', 'Tibialis_Atendon', 'Tibialis_tau_act', 'Tibialis_tau_deact', 'Tibialis_scale_emg' ...
+            'Gastroc_lmOpt_r', 'Gastroc_Atendon_r', 'Gastroc_tau_act_r', 'Gastroc_tau_deact_r', 'Gastroc_scale_emg_r', ...
+            'Soleus_lmOpt_r', 'Soleus_Atendon_r', 'Soleus_tau_act_r', 'Soleus_tau_deact_r', 'Soleus_scale_emg_r', ...
+            'Tibialis_lmOpt_r', 'Tibialis_Atendon_r', 'Tibialis_tau_act_r', 'Tibialis_tau_deact_r', 'Tibialis_scale_emg_r' ...
+            'Gastroc_lmOpt_l', 'Gastroc_Atendon_l', 'Gastroc_tau_act_l', 'Gastroc_tau_deact_l', 'Gastroc_scale_emg_l', ...
+            'Soleus_lmOpt_l', 'Soleus_Atendon_l', 'Soleus_tau_act_l', 'Soleus_tau_deact_l', 'Soleus_scale_emg_l', ...
+            'Tibialis_lmOpt_l', 'Tibialis_Atendon_l', 'Tibialis_tau_act_l', 'Tibialis_tau_deact_l', 'Tibialis_scale_emg_l' ...
             }; % update muscle parameters will change these variables now
 
         % figure Left joint moment things
@@ -131,6 +160,13 @@ classdef Assist_Shortening_GUI_exported < matlab.apps.AppBase
         GuiOutputbin_target
         length_GuiOuputStream
         gui_data
+
+        % Vector-read highlevel control parameters
+        HighLevelParamHandle
+        HighLevelParamdata_target
+        HighLevelParambin_target
+        length_HighLevelParamStream
+        HighLevelParam_data
 
         % various things handled automatically
         tcClient_lowlevel
@@ -401,6 +437,10 @@ classdef Assist_Shortening_GUI_exported < matlab.apps.AppBase
                 app.length_GuiOuputStream = app.number_gui_outputs * 8; %8 bytes per double
                 app.GuiOutputdata_target = AdsStream(app.length_GuiOuputStream);
                 app.GuiOutputbin_target = AdsBinaryReader(app.GuiOutputdata_target);
+                % init read for highevel control parameters
+                app.length_HighLevelParamStream = app.number_highlevel_param_outputs * 8;
+                app.HighLevelParamdata_target = AdsStream(app.length_HighLevelParamStream);
+                app.HighLevelParambin_target = AdsBinaryReader(app.HighLevelParamdata_target);
 
                 % update text
                 app.TextArea.Value = [app.TextArea.Value; {'ADS connection done'}];
@@ -413,6 +453,8 @@ classdef Assist_Shortening_GUI_exported < matlab.apps.AppBase
                 app.tcClient_lowlevel.Connect([], []);
                 app.GuiOutputdata_target = System.IO.MemoryStream(app.number_gui_outputs * 8);
                 app.GuiOutputbin_target = System.IO.BinaryReader(app.GuiOutputdata_target);
+                app.HighLevelParamdata_target = System.IO.MemoryStream(app.number_highlevel_param_outputs * 8);
+                app.HighLevelParambin_target = System.IO.BinaryReader(app.HighLevelParamdata_target);
                 app.TextArea.Value = [app.TextArea.Value; {'ADS connection failed, debug ADS mode activated (dummy ADS)'}];
             end
 
@@ -424,21 +466,39 @@ classdef Assist_Shortening_GUI_exported < matlab.apps.AppBase
             % list of all the handles we want to create
             handleSpecs = { ...
                 'GuiOutputHandle', [base_name_output 'gui_output'], 'gui_output_plot',app.tcClient_highlevel; ...
-                'Gastroc_lmOpt', [base_name_high 'ModelParameters.Gastroc_lmOpt'], 'muscle_upload',app.tcClient_highlevel; ...
-                'Gastroc_Atendon', [base_name_high 'ModelParameters.Gastroc_Atendon'], 'muscle_upload',app.tcClient_highlevel; ...
-                'Gastroc_tau_act', [base_name_high 'ModelParameters.Gastroc_tau_act'], 'muscle_upload',app.tcClient_highlevel; ...
-                'Gastroc_tau_deact', [base_name_high 'ModelParameters.Gastroc_tau_deact'], 'muscle_upload',app.tcClient_highlevel; ...
-                'Gastroc_scale_emg', [base_name_high 'ModelParameters.Gastroc_scale_emg'], 'muscle_upload',app.tcClient_highlevel; ...
-                'Soleus_lmOpt', [base_name_high 'ModelParameters.Soleus_lmOpt'], 'muscle_upload',app.tcClient_highlevel; ...
-                'Soleus_Atendon', [base_name_high 'ModelParameters.Soleus_Atendon'], 'muscle_upload',app.tcClient_highlevel; ...
-                'Soleus_tau_act', [base_name_high 'ModelParameters.Soleus_tau_act'], 'muscle_upload',app.tcClient_highlevel; ...
-                'Soleus_tau_deact', [base_name_high 'ModelParameters.Soleus_tau_deact'], 'muscle_upload',app.tcClient_highlevel; ...
-                'Soleus_scale_emg', [base_name_high 'ModelParameters.Soleus_scale_emg'], 'muscle_upload',app.tcClient_highlevel; ...
-                'Tibialis_lmOpt', [base_name_high 'ModelParameters.Tibialis_lmOpt'], 'muscle_upload',app.tcClient_highlevel; ...
-                'Tibialis_Atendon', [base_name_high 'ModelParameters.Tibialis_Atendon'], 'muscle_upload',app.tcClient_highlevel; ...
-                'Tibialis_tau_act', [base_name_high 'ModelParameters.Tibialis_tau_act'], 'muscle_upload',app.tcClient_highlevel; ...
-                'Tibialis_tau_deact', [base_name_high 'ModelParameters.Tibialis_tau_deact'], 'muscle_upload',app.tcClient_highlevel; ...
-                'Tibialis_scale_emg', [base_name_high 'ModelParameters.Tibialis_scale_emg'], 'muscle_upload',app.tcClient_highlevel; ...
+
+                'Gastroc_lmOpt_r', [base_name_high 'ModelParameters.Gastroc_lmOpt_r_Value'], 'muscle_upload',app.tcClient_highlevel; ...
+                'Gastroc_Atendon_r', [base_name_high 'ModelParameters.Gastroc_Atendon_r_Value'], 'muscle_upload',app.tcClient_highlevel; ...
+                'Gastroc_tau_act_r', [base_name_high 'ModelParameters.Gastroc_tau_act_r_Value'], 'muscle_upload',app.tcClient_highlevel; ...
+                'Gastroc_tau_deact_r', [base_name_high 'ModelParameters.Gastroc_tau_deact_r_Value'], 'muscle_upload',app.tcClient_highlevel; ...
+                'Gastroc_scale_emg_r', [base_name_high 'ModelParameters.Gastroc_scale_emg_r_Value'], 'muscle_upload',app.tcClient_highlevel; ...
+                'Soleus_lmOpt_r', [base_name_high 'ModelParameters.Soleus_lmOpt_r_Value'], 'muscle_upload',app.tcClient_highlevel; ...
+                'Soleus_Atendon_r', [base_name_high 'ModelParameters.Soleus_Atendon_r_Value'], 'muscle_upload',app.tcClient_highlevel; ...
+                'Soleus_tau_act_r', [base_name_high 'ModelParameters.Soleus_tau_act_r_Value'], 'muscle_upload',app.tcClient_highlevel; ...
+                'Soleus_tau_deact_r', [base_name_high 'ModelParameters.Soleus_tau_deact_r_Value'], 'muscle_upload',app.tcClient_highlevel; ...
+                'Soleus_scale_emg_r', [base_name_high 'ModelParameters.Soleus_scale_emg_r_Value'], 'muscle_upload',app.tcClient_highlevel; ...
+                'Tibialis_lmOpt_r', [base_name_high 'ModelParameters.Tibialis_lmOpt_r_Value'], 'muscle_upload',app.tcClient_highlevel; ...
+                'Tibialis_Atendon_r', [base_name_high 'ModelParameters.Tibialis_Atendon_r_Value'], 'muscle_upload',app.tcClient_highlevel; ...
+                'Tibialis_tau_act_r', [base_name_high 'ModelParameters.Tibialis_tau_act_r_Value'], 'muscle_upload',app.tcClient_highlevel; ...
+                'Tibialis_tau_deact_r', [base_name_high 'ModelParameters.Tibialis_tau_deact_r_Value'], 'muscle_upload',app.tcClient_highlevel; ...
+                'Tibialis_scale_emg_r', [base_name_high 'ModelParameters.Tibialis_scale_emg_r_Value'], 'muscle_upload',app.tcClient_highlevel; ...
+                
+                'Gastroc_lmOpt_l', [base_name_high 'ModelParameters.Gastroc_lmOpt_l_Value'], 'muscle_upload',app.tcClient_highlevel; ...
+                'Gastroc_Atendon_l', [base_name_high 'ModelParameters.Gastroc_Atendon_l_Value'], 'muscle_upload',app.tcClient_highlevel; ...
+                'Gastroc_tau_act_l', [base_name_high 'ModelParameters.Gastroc_tau_act_l_Value'], 'muscle_upload',app.tcClient_highlevel; ...
+                'Gastroc_tau_deact_l', [base_name_high 'ModelParameters.Gastroc_tau_deact_l_Value'], 'muscle_upload',app.tcClient_highlevel; ...
+                'Gastroc_scale_emg_l', [base_name_high 'ModelParameters.Gastroc_scale_emg_l_Value'], 'muscle_upload',app.tcClient_highlevel; ...
+                'Soleus_lmOpt_l', [base_name_high 'ModelParameters.Soleus_lmOpt_l_Value'], 'muscle_upload',app.tcClient_highlevel; ...
+                'Soleus_Atendon_l', [base_name_high 'ModelParameters.Soleus_Atendon_l_Value'], 'muscle_upload',app.tcClient_highlevel; ...
+                'Soleus_tau_act_l', [base_name_high 'ModelParameters.Soleus_tau_act_l_Value'], 'muscle_upload',app.tcClient_highlevel; ...
+                'Soleus_tau_deact_l', [base_name_high 'ModelParameters.Soleus_tau_deact_l_Value'], 'muscle_upload',app.tcClient_highlevel; ...
+                'Soleus_scale_emg_l', [base_name_high 'ModelParameters.Soleus_scale_emg_l_Value'], 'muscle_upload',app.tcClient_highlevel; ...
+                'Tibialis_lmOpt_l', [base_name_high 'ModelParameters.Tibialis_lmOpt_l_Value'], 'muscle_upload',app.tcClient_highlevel; ...
+                'Tibialis_Atendon_l', [base_name_high 'ModelParameters.Tibialis_Atendon_l_Value'], 'muscle_upload',app.tcClient_highlevel; ...
+                'Tibialis_tau_act_l', [base_name_high 'ModelParameters.Tibialis_tau_act_l_Value'], 'muscle_upload',app.tcClient_highlevel; ...
+                'Tibialis_tau_deact_l', [base_name_high 'ModelParameters.Tibialis_tau_deact_l_Value'], 'muscle_upload',app.tcClient_highlevel; ...
+                'Tibialis_scale_emg_l', [base_name_high 'ModelParameters.Tibialis_scale_emg_l_Value'], 'muscle_upload',app.tcClient_highlevel; ...
+
                 'ControllerMode', [base_name_high 'ModelParameters.ControllerMode_Value'], 'controller_params',app.tcClient_highlevel; ...
                 'MinimalTorque', [base_name_high 'ModelParameters.MinimalTorque_Value'], 'controller_params',app.tcClient_highlevel; ...
                 'ApplyAssistance', [base_name_high 'ModelParameters.ApplyAssistance_Value'], 'controller_params',app.tcClient_highlevel; ...
@@ -446,6 +506,7 @@ classdef Assist_Shortening_GUI_exported < matlab.apps.AppBase
                 'b_exo', [base_name_high 'ModelParameters.bexo_Value'], 'controller_params',app.tcClient_highlevel; ...
                 'actdyn_selection', [base_name_high 'ModelParameters.ActDyn_mode_Value'], 'controller_params',app.tcClient_highlevel; ...
                 'cutoff_vel', [base_name_high 'ModelParameters.cutoff_vel_Value'], 'controller_params',app.tcClient_highlevel; ...
+                
                 'zero_loadcell_left', [base_name_low 'Constant50_Value'], 'lowlevel_params',app.tcClient_lowlevel; ...
                 'zero_loadcell_right', [base_name_low 'Constant64_Value'], 'lowlevel_params',app.tcClient_lowlevel; ...
                 'zero_encoder_left', [base_name_low 'Constant30_Value'], 'lowlevel_params',app.tcClient_lowlevel; ...
@@ -463,12 +524,19 @@ classdef Assist_Shortening_GUI_exported < matlab.apps.AppBase
                 'pd_kp_left', [base_name_low 'ManualKp1_Value'], 'lowlevel_params',app.tcClient_lowlevel; ...
                 'pd_kp_right', [base_name_low 'ManualKp2_Value'], 'lowlevel_params',app.tcClient_lowlevel; ...
                 'pd_kd_left', [base_name_low 'ManualKd_Value'], 'lowlevel_params',app.tcClient_lowlevel; ...
-                'pd_kd_right', [base_name_low 'ManualKd1_Value'], 'lowlevel_params',app.tcClient_lowlevel ...
+                'pd_kd_right', [base_name_low 'ManualKd1_Value'], 'lowlevel_params',app.tcClient_lowlevel; ...
+
+                'HighLevelParamHandle', [base_name_output 'highlevel_params_output'], 'highlevel_params',app.tcClient_highlevel; ...
+                'lowlevel_params_output', [base_name_low 'lowlevel_params_output'], 'lowlevel_params',app.tcClient_lowlevel ...;
                 };
             app.writeMap = struct;
             app.GuiOutputHandle = [];
+            app.HighLevelParamHandle = [];
+
             app.gui_data = zeros(app.number_gui_outputs,1);
             app.handleInitFailures = struct('key', {}, 'symbol', {}, 'group', {}, 'message', {});
+            app.HighLevelParam_data = zeros(app.number_highlevel_param_outputs,1);
+
             
             % loop to create all the handles with error check
             for ispec = 1:size(handleSpecs, 1)
@@ -479,6 +547,8 @@ classdef Assist_Shortening_GUI_exported < matlab.apps.AppBase
                 [createdHandle, isOk] = app.createHandleChecked(key, symbol, group, tcClient);
                 if strcmp(key, 'GuiOutputHandle')
                     if isOk, app.GuiOutputHandle = createdHandle; end
+                elseif strcmp(key, 'HighLevelParamHandle')
+                    if isOk, app.HighLevelParamHandle = createdHandle; end
                 else
                     if isOk
                         app.writeMap.(key) = createdHandle;
@@ -533,6 +603,8 @@ classdef Assist_Shortening_GUI_exported < matlab.apps.AppBase
             end
             app.muscle_params_file = fullfile(path, file);
             fprintf('Selected file: %s\n', app.muscle_params_file);
+            % also print selected file in the window
+            app.TextArea.Value = [app.TextArea.Value; {['file selected : ' app.muscle_params_file]}];
         end
 
         % Button pushed function: UploadParamsButton
@@ -545,6 +617,7 @@ classdef Assist_Shortening_GUI_exported < matlab.apps.AppBase
             if exist(app.muscle_params_file,'file')
                 % load the muscle params file
                 muscle_params = load(app.muscle_params_file);
+                disp([app.muscle_params_file ' muscle params file loaded correctly']);
                 % unpack muscle params in memory
                 % ToDo: discuss how to do this with Lonit. This will
                 % look something like this
@@ -552,22 +625,27 @@ classdef Assist_Shortening_GUI_exported < matlab.apps.AppBase
                 % workspace
                 %unpack_model(muscle_params.model)
                 % test upload one param file
-                app.writeDouble(app.writeMap.Soleus_lmOpt,...
+                app.writeDouble(app.writeMap.Soleus_lmOpt_r,...
                         99, ...
                         app.tcClient_highlevel);
-                % % loop over all params we want to change
-                % for iparam = 1:length(app.headers_muscle_params)
-                %     % name of the variable
-                %     var_name = app.headers_muscle_params{iparam};
-                %     % the muscle name and param name
-                %     parts = regexp(var_name, '^([^_]+)_(.*)$', 'tokens', 'once');
-                %     muscle_name = parts{1};
-                %     param_name = parts{2};
-                %     % adapt muscle parameter value
-                %     app.writeDouble(app.writeMap.(var_name),...
-                %         muscle_params.model.(muscle_name).(param_name), ...
-                %         app.tcClient_highlevel);
-                % end
+
+                % loop over all params we want to change
+                disp([app.muscle_params_file ' started updating muscle params']);
+                for iparam = 1:length(app.headers_muscle_params)
+                    % name of the variable
+                    var_name = app.headers_muscle_params{iparam};
+                    % the muscle name and param name
+                    parts = regexp(var_name, '^([^_]+)_(.*)$', 'tokens', 'once');
+                    muscle_name = parts{1};
+                    param_name = parts{2};
+                    % adapt muscle parameter value
+                    value_sel = muscle_params.model.(muscle_name).(param_name);
+                    app.writeDouble(app.writeMap.(var_name),...
+                        value_sel, ...
+                        app.tcClient_highlevel);
+                    % display set muscle parameter
+                    disp([app.muscle_params_file [var_name ' set to ' num2str(value_sel)]]);
+                end
             else
                 disp([app.muscle_params_file ' does not exist']);
             end
@@ -689,13 +767,16 @@ classdef Assist_Shortening_GUI_exported < matlab.apps.AppBase
         % Value changed function: KpEditField
         function KpEditFieldValueChanged(app, event)
             value = app.KpEditField.Value;
-            app.writeDouble(app.writeMap.pd_kp, value, app.tcClient_lowlevel);
+            app.writeDouble(app.writeMap.pd_kp_left, value, app.tcClient_lowlevel);
+            app.writeDouble(app.writeMap.pd_kp_right, value, app.tcClient_lowlevel);
         end
 
         % Value changed function: KdEditField
         function KdEditFieldValueChanged(app, event)
             value = app.KdEditField.Value;
-            app.writeDouble(app.writeMap.pd_kd, value, app.tcClient_lowlevel);
+            %app.writeDouble(app.writeMap.pd_kd, value, app.tcClient_lowlevel);
+            app.writeDouble(app.writeMap.pd_kp_left, value, app.tcClient_lowlevel);
+            app.writeDouble(app.writeMap.pd_kp_right, value, app.tcClient_lowlevel);
         end
 
         % Value changed function: bexoEditField
@@ -740,14 +821,45 @@ classdef Assist_Shortening_GUI_exported < matlab.apps.AppBase
         % Value changed function: MaxTorqueEditField
         function MaxTorqueEditFieldValueChanged(app, event)
             value = app.MaxTorqueEditField.Value;
-            app.writeDouble(app.writeMap.max_torque,value, app.tcClient_highlevel);    
-            
+            app.writeDouble(app.writeMap.max_torque,value, app.tcClient_lowlevel);                
         end
 
         % Value changed function: durationzeroEditField
         function durationzeroEditFieldValueChanged(app, event)
             value = app.durationzeroEditField.Value;
             app.dt_zero_sensors = value;
+        end
+
+        % Button pushed function: PrintControlParametersButton
+        function PrintControlParametersButtonPushed(app, event)
+            % here we want to first fetch all the control params through
+            % the ads stream and subsequently print all of the in the
+            % command window
+            % get all gui_output data
+
+            %  read the highlevel param data
+            if isempty(app.HighLevelParamHandle)
+                warning('High-level params output handle missing; cannot print high-level parameters.');
+                app.TextArea.Value = [app.TextArea.Value; {'Print skipped: highlevel_params_output handle missing'}];
+                return;
+            end
+
+            %  read the highlevel param data
+            app.tcClient_highlevel.Read(app.HighLevelParamHandle, app. HighLevelParamdata_target);
+            for ind = 1:app.number_highlevel_param_outputs
+                app.HighLevelParam_data(ind) = app.HighLevelParambin_target.ReadDouble;
+            end
+            app.HighLevelParamdata_target.Position = 0;
+
+            % print all the highlevel param data
+            app.TextArea.Value = [app.TextArea.Value; { 'printing current highlevel controller parameters'}];
+            for idata = 1:length(app.highlevel_params_headers)
+                app.TextArea.Value = [app.TextArea.Value; { ' ' app.highlevel_params_headers{idata}, ' ',...
+                    num2str(app.HighLevelParam_data(idata))}];
+            end
+
+            % read the lowlevel param data
+
         end
     end
 
@@ -760,7 +872,7 @@ classdef Assist_Shortening_GUI_exported < matlab.apps.AppBase
             % Create UIFigure and hide until all components are created
             app.UIFigure = uifigure('Visible', 'off');
             app.UIFigure.Color = [1 1 1];
-            app.UIFigure.Position = [100 100 1101 741];
+            app.UIFigure.Position = [100 100 1536 728];
             app.UIFigure.Name = 'MATLAB App';
             app.UIFigure.Theme = 'light';
             app.UIFigure.CloseRequestFcn = createCallbackFcn(app, @UIFigureCloseRequest, true);
@@ -771,7 +883,7 @@ classdef Assist_Shortening_GUI_exported < matlab.apps.AppBase
             ylabel(app.LeftMuscleMoments, 'Muscle Moment')
             zlabel(app.LeftMuscleMoments, 'Z')
             app.LeftMuscleMoments.Toolbar.Visible = 'off';
-            app.LeftMuscleMoments.Position = [436 207 300 185];
+            app.LeftMuscleMoments.Position = [351 389 300 185];
 
             % Create RightMuscleMoments
             app.RightMuscleMoments = uiaxes(app.UIFigure);
@@ -779,29 +891,41 @@ classdef Assist_Shortening_GUI_exported < matlab.apps.AppBase
             ylabel(app.RightMuscleMoments, 'Muscle Moment')
             zlabel(app.RightMuscleMoments, 'Z')
             app.RightMuscleMoments.Toolbar.Visible = 'off';
-            app.RightMuscleMoments.Position = [764 207 300 185];
+            app.RightMuscleMoments.Position = [679 389 300 185];
 
             % Create LeftJointMoments
             app.LeftJointMoments = uiaxes(app.UIFigure);
-            xlabel(app.LeftJointMoments, 'Time [s]')
             ylabel(app.LeftJointMoments, 'Ankle Moment')
             zlabel(app.LeftJointMoments, 'Z')
             app.LeftJointMoments.Toolbar.Visible = 'off';
-            app.LeftJointMoments.Position = [436 19 300 185];
+            app.LeftJointMoments.Position = [351 201 300 185];
 
             % Create RightJointMoments
             app.RightJointMoments = uiaxes(app.UIFigure);
-            xlabel(app.RightJointMoments, 'Time [s]')
             ylabel(app.RightJointMoments, 'Ankle Moment')
             zlabel(app.RightJointMoments, 'Z')
             app.RightJointMoments.Toolbar.Visible = 'off';
-            app.RightJointMoments.Position = [764 19 300 185];
+            app.RightJointMoments.Position = [679 201 300 185];
+
+            % Create UIAxes
+            app.UIAxes = uiaxes(app.UIFigure);
+            xlabel(app.UIAxes, 'Time [s]')
+            ylabel(app.UIAxes, 'Muscle activation')
+            zlabel(app.UIAxes, 'Z')
+            app.UIAxes.Position = [351 17 300 185];
+
+            % Create UIAxes_2
+            app.UIAxes_2 = uiaxes(app.UIFigure);
+            xlabel(app.UIAxes_2, 'Time [s]')
+            ylabel(app.UIAxes_2, 'muscle activation')
+            zlabel(app.UIAxes_2, 'Z')
+            app.UIAxes_2.Position = [679 17 300 185];
 
             % Create LowlevelcontrollersettingsPanel
             app.LowlevelcontrollersettingsPanel = uipanel(app.UIFigure);
             app.LowlevelcontrollersettingsPanel.Title = 'Low level controller settings';
             app.LowlevelcontrollersettingsPanel.BackgroundColor = [1 1 1];
-            app.LowlevelcontrollersettingsPanel.Position = [31 406 328 190];
+            app.LowlevelcontrollersettingsPanel.Position = [11 402 328 190];
 
             % Create KpEditFieldLabel
             app.KpEditFieldLabel = uilabel(app.LowlevelcontrollersettingsPanel);
@@ -844,11 +968,23 @@ classdef Assist_Shortening_GUI_exported < matlab.apps.AppBase
             app.MaxTorqueEditField.ValueChangedFcn = createCallbackFcn(app, @MaxTorqueEditFieldValueChanged, true);
             app.MaxTorqueEditField.Position = [86 102 100 22];
 
+            % Create durationzeroEditFieldLabel
+            app.durationzeroEditFieldLabel = uilabel(app.LowlevelcontrollersettingsPanel);
+            app.durationzeroEditFieldLabel.HorizontalAlignment = 'right';
+            app.durationzeroEditFieldLabel.Position = [212 135 75 22];
+            app.durationzeroEditFieldLabel.Text = 'duration zero';
+
+            % Create durationzeroEditField
+            app.durationzeroEditField = uieditfield(app.LowlevelcontrollersettingsPanel, 'numeric');
+            app.durationzeroEditField.ValueChangedFcn = createCallbackFcn(app, @durationzeroEditFieldValueChanged, true);
+            app.durationzeroEditField.Position = [212 113 100 22];
+            app.durationzeroEditField.Value = 3;
+
             % Create HighlevelcontrollersettingsPanel
             app.HighlevelcontrollersettingsPanel = uipanel(app.UIFigure);
             app.HighlevelcontrollersettingsPanel.Title = 'High level controller settings';
             app.HighlevelcontrollersettingsPanel.BackgroundColor = [1 1 1];
-            app.HighlevelcontrollersettingsPanel.Position = [32 15 327 377];
+            app.HighlevelcontrollersettingsPanel.Position = [11 -2 327 377];
 
             % Create SetParamsFileButton
             app.SetParamsFileButton = uibutton(app.HighlevelcontrollersettingsPanel, 'push');
@@ -942,7 +1078,7 @@ classdef Assist_Shortening_GUI_exported < matlab.apps.AppBase
             app.InitLowlevelcontrollerPanel = uipanel(app.UIFigure);
             app.InitLowlevelcontrollerPanel.Title = 'Init Lowlevel controller';
             app.InitLowlevelcontrollerPanel.BackgroundColor = [1 1 1];
-            app.InitLowlevelcontrollerPanel.Position = [30 604 1059 126];
+            app.InitLowlevelcontrollerPanel.Position = [11 596 963 126];
 
             % Create zeroLoadcellLButton
             app.zeroLoadcellLButton = uibutton(app.InitLowlevelcontrollerPanel, 'push');
@@ -1016,27 +1152,21 @@ classdef Assist_Shortening_GUI_exported < matlab.apps.AppBase
             app.enablemotorvelocityRCheckBox.Text = 'enable motor velocity R';
             app.enablemotorvelocityRCheckBox.Position = [735 29 147 22];
 
-            % Create durationzeroEditFieldLabel
-            app.durationzeroEditFieldLabel = uilabel(app.InitLowlevelcontrollerPanel);
-            app.durationzeroEditFieldLabel.HorizontalAlignment = 'right';
-            app.durationzeroEditFieldLabel.Position = [949 76 75 22];
-            app.durationzeroEditFieldLabel.Text = 'duration zero';
-
-            % Create durationzeroEditField
-            app.durationzeroEditField = uieditfield(app.InitLowlevelcontrollerPanel, 'numeric');
-            app.durationzeroEditField.ValueChangedFcn = createCallbackFcn(app, @durationzeroEditFieldValueChanged, true);
-            app.durationzeroEditField.Position = [949 54 100 22];
-            app.durationzeroEditField.Value = 3;
-
             % Create enabledatacollectionCheckBox
             app.enabledatacollectionCheckBox = uicheckbox(app.UIFigure);
             app.enabledatacollectionCheckBox.ValueChangedFcn = createCallbackFcn(app, @enabledatacollectionCheckBoxValueChanged, true);
             app.enabledatacollectionCheckBox.Text = 'enable data collection';
-            app.enabledatacollectionCheckBox.Position = [40 549 137 22];
+            app.enabledatacollectionCheckBox.Position = [40 536 137 22];
 
             % Create TextArea
             app.TextArea = uitextarea(app.UIFigure);
-            app.TextArea.Position = [410 414 679 182];
+            app.TextArea.Position = [1018 17 513 655];
+
+            % Create PrintControlParametersButton
+            app.PrintControlParametersButton = uibutton(app.UIFigure, 'push');
+            app.PrintControlParametersButton.ButtonPushedFcn = createCallbackFcn(app, @PrintControlParametersButtonPushed, true);
+            app.PrintControlParametersButton.Position = [1018 692 146 22];
+            app.PrintControlParametersButton.Text = 'Print Control Parameters';
 
             % Show the figure after all components are created
             app.UIFigure.Visible = 'on';

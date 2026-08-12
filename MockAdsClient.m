@@ -36,6 +36,9 @@ classdef MockAdsClient < handle
             if contains(symbol, 'gui_output')
                 obj.writeDoublesToStream(stream, obj.mockGuiOutputVector());
                 return;
+            elseif contains(symbol, 'highlevel_params_output')
+                obj.writeDoublesToStream(stream, obj.mockHighlevelParamsVector());
+                return;
             end
             value = obj.mockSignalValue(symbol);
             obj.writeDoublesToStream(stream, value);
@@ -122,6 +125,35 @@ classdef MockAdsClient < handle
                 -4 + 0.9 * sin(2 * pi * 0.9 * t + pi + 1.5);% RightTibMoment
                 1                                               % ControlMode
             ];
+        end
+
+        function values = mockHighlevelParamsVector(obj)
+            values = [
+                obj.getStoredOrDefault('ModelParameters.MinimalTorque_Value', 2.0);       % MinimalTorque
+                obj.getStoredOrDefault('ModelParameters.ApplyAssistance_Value', 1.0);     % ApplyAssistance
+                obj.getStoredOrDefault('ModelParameters.PercentageAssistance_Value', 0.3);% perc_assistance_left
+                obj.getStoredOrDefault('ModelParameters.PercentageAssistance_Value', 0.3);% perc_assistance_right
+                obj.getStoredOrDefault('ModelParameters.bexo_Value', 0.05);               % b_exo
+                obj.getStoredOrDefault('ModelParameters.ActDyn_mode_Value', 1.0);         % actdyn_selection
+                obj.getStoredOrDefault('ModelParameters.cutoff_vel_Value', 2.0);          % cutoff_vel
+                obj.getStoredOrDefault('ModelParameters.ControllerMode_Value', 1.0)       % ControllerMode
+            ];
+        end
+
+        function value = getStoredOrDefault(obj, token, defaultValue)
+            keys = obj.storedValues.keys;
+            keyMatch = '';
+            for i = 1:numel(keys)
+                if contains(keys{i}, token)
+                    keyMatch = keys{i};
+                    break;
+                end
+            end
+            if ~isempty(keyMatch)
+                value = obj.storedValues(keyMatch);
+            else
+                value = defaultValue;
+            end
         end
 
         function writeDoublesToStream(~, stream, value)
