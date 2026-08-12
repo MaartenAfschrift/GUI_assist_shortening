@@ -1,4 +1,4 @@
-classdef Assist_Shortening_GUI_exported < matlab.apps.AppBase
+classdef Assist_Shortening_GUI_exported_2018_test < matlab.apps.AppBase
 
     % Properties that correspond to app components
     properties (Access = public)
@@ -756,7 +756,7 @@ classdef Assist_Shortening_GUI_exported < matlab.apps.AppBase
             app.UIFigure.Color = [1 1 1];
             app.UIFigure.Position = [100 100 1101 741];
             app.UIFigure.Name = 'MATLAB App';
-            app.UIFigure.Theme = 'light';
+            % app.UIFigure.Theme = 'light';
             app.UIFigure.CloseRequestFcn = createCallbackFcn(app, @UIFigureCloseRequest, true);
 
             % Create LeftMuscleMoments
@@ -764,7 +764,7 @@ classdef Assist_Shortening_GUI_exported < matlab.apps.AppBase
             title(app.LeftMuscleMoments, 'Left')
             ylabel(app.LeftMuscleMoments, 'Muscle Moment')
             zlabel(app.LeftMuscleMoments, 'Z')
-            app.LeftMuscleMoments.Toolbar.Visible = 'off';
+            % app.LeftMuscleMoments.Toolbar.Visible = 'off';
             app.LeftMuscleMoments.Position = [436 207 300 185];
 
             % Create RightMuscleMoments
@@ -772,7 +772,7 @@ classdef Assist_Shortening_GUI_exported < matlab.apps.AppBase
             title(app.RightMuscleMoments, 'Right')
             ylabel(app.RightMuscleMoments, 'Muscle Moment')
             zlabel(app.RightMuscleMoments, 'Z')
-            app.RightMuscleMoments.Toolbar.Visible = 'off';
+            % app.RightMuscleMoments.Toolbar.Visible = 'off';
             app.RightMuscleMoments.Position = [764 207 300 185];
 
             % Create LeftJointMoments
@@ -780,7 +780,7 @@ classdef Assist_Shortening_GUI_exported < matlab.apps.AppBase
             xlabel(app.LeftJointMoments, 'Time [s]')
             ylabel(app.LeftJointMoments, 'Ankle Moment')
             zlabel(app.LeftJointMoments, 'Z')
-            app.LeftJointMoments.Toolbar.Visible = 'off';
+            % app.LeftJointMoments.Toolbar.Visible = 'off';
             app.LeftJointMoments.Position = [436 19 300 185];
 
             % Create RightJointMoments
@@ -788,7 +788,7 @@ classdef Assist_Shortening_GUI_exported < matlab.apps.AppBase
             xlabel(app.RightJointMoments, 'Time [s]')
             ylabel(app.RightJointMoments, 'Ankle Moment')
             zlabel(app.RightJointMoments, 'Z')
-            app.RightJointMoments.Toolbar.Visible = 'off';
+            % app.RightJointMoments.Toolbar.Visible = 'off';
             app.RightJointMoments.Position = [764 19 300 185];
 
             % Create LowlevelcontrollersettingsPanel
