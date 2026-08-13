@@ -631,8 +631,8 @@ classdef Assist_Shortening_GUI_exported < matlab.apps.AppBase
                 'pd_kp_right', [base_name_low 'ManualKp2_Value'], 'lowlevel_params',app.tcClient_lowlevel; ...
                 'pd_kd_left', [base_name_low 'ManualKd_Value'], 'lowlevel_params',app.tcClient_lowlevel; ...
                 'pd_kd_right', [base_name_low 'ManualKd1_Value'], 'lowlevel_params',app.tcClient_lowlevel; ...
-                'reset_drive_left', [base_name_low 'Constant27_Value'], 'lowlevel_params',app.tcClient_lowlevel; ...
-                'reset_drive_right', [base_name_low 'Constant58_Value'], 'lowlevel_params',app.tcClient_lowlevel; ...
+                'reset_drive_left', [base_name_low 'Constant27_Value_m'], 'lowlevel_params',app.tcClient_lowlevel; ...
+                'reset_drive_right', [base_name_low 'Constant58_Value_l'], 'lowlevel_params',app.tcClient_lowlevel; ...
 
                 'HighLevelParamHandle', [base_name_output 'highlevel_params'], 'highlevel_params',app.tcClient_highlevel; ...
                 'lowlevel_params_output', [base_name_low 'lowlevel_params'], 'lowlevel_params',app.tcClient_lowlevel ...;
@@ -867,21 +867,33 @@ classdef Assist_Shortening_GUI_exported < matlab.apps.AppBase
         function enabledriveLCheckBoxValueChanged(app, event)
             value = app.enabledriveLCheckBox.Value;
             app.writeDouble(app.writeMap.enable_drives_left, value, app.tcClient_lowlevel);
-            app.TextArea.Value = [app.TextArea.Value; {' left motor drive enabled'}];
+            if value == 1
+                app.TextArea.Value = [app.TextArea.Value; {' left motor drive enabled'}];
+            else
+                app.TextArea.Value = [app.TextArea.Value; {' left motor drive disabled'}];
+            end
         end
 
         % Value changed function: enabledriveRCheckBox
         function enabledriveRCheckBoxValueChanged(app, event)
             value = app.enabledriveRCheckBox.Value;
             app.writeDouble(app.writeMap.enable_drives_right, value, app.tcClient_lowlevel);
-            app.TextArea.Value = [app.TextArea.Value; {' right motor drive enabled'}];
+            if value == 1
+                app.TextArea.Value = [app.TextArea.Value; {' right motor drive enabled'}];
+            else
+                app.TextArea.Value = [app.TextArea.Value; {' right motor drive disabled'}];
+            end
         end
 
         % Value changed function: enablemotorvelLCheckBox
         function enablemotorvelLCheckBoxValueChanged(app, event)
             value = app.enablemotorvelLCheckBox.Value;
             app.writeDouble(app.writeMap.enable_motor_velocity_left, value, app.tcClient_lowlevel);
-            app.TextArea.Value = [app.TextArea.Value; {' left motor vel enabled'}];
+            if value == 1
+                app.TextArea.Value = [app.TextArea.Value; {' left motor vel enabled'}];
+            else
+                app.TextArea.Value = [app.TextArea.Value; {' left motor vel disabled'}];
+            end
 
         end
 
@@ -889,7 +901,11 @@ classdef Assist_Shortening_GUI_exported < matlab.apps.AppBase
         function enablemotorvelRCheckBoxValueChanged(app, event)
             value = app.enablemotorvelRCheckBox.Value;
             app.writeDouble(app.writeMap.enable_motor_velocity_right, value, app.tcClient_lowlevel);
-            app.TextArea.Value = [app.TextArea.Value; {' right motor vel enabled'}];
+            if value == 1
+                app.TextArea.Value = [app.TextArea.Value; {' right motor vel enabled'}];
+            else
+                app.TextArea.Value = [app.TextArea.Value; {' right motor vel disabled'}];
+            end
 
         end
 
@@ -901,7 +917,11 @@ classdef Assist_Shortening_GUI_exported < matlab.apps.AppBase
             else
                 app.writeDouble(app.writeMap.enable_data_collection, 0, app.tcClient_lowlevel);
             end
-            app.TextArea.Value = [app.TextArea.Value; {' data collection started'}];
+            if bool_data_collection
+                app.TextArea.Value = [app.TextArea.Value; {' data collection started'}];
+            else
+                app.TextArea.Value = [app.TextArea.Value; {' data collection stopped'}];
+            end
 
         end
 
@@ -1020,12 +1040,22 @@ classdef Assist_Shortening_GUI_exported < matlab.apps.AppBase
         function resetdriveLCheckBoxValueChanged(app, event)
             value = app.resetdriveLCheckBox.Value;
             app.writeDouble(app.writeMap.reset_drive_left, value, app.tcClient_lowlevel)
+            if value == 1
+                app.TextArea.Value = [app.TextArea.Value; {' reset left drive set to 1'}];
+            else
+                app.TextArea.Value = [app.TextArea.Value; {' reset left drive set to 0'}];
+            end
         end
 
         % Value changed function: resetdriveRCheckBox
         function resetdriveRCheckBoxValueChanged(app, event)
             value = app.resetdriveRCheckBox.Value;
             app.writeDouble(app.writeMap.reset_drive_right, value, app.tcClient_lowlevel)
+            if value == 1
+                app.TextArea.Value = [app.TextArea.Value; {' reset right drive set to 1'}];
+            else
+                app.TextArea.Value = [app.TextArea.Value; {' reset right drive set to 0'}];
+            end
         end
 
         % Button pushed function: SetFolderDataLogButton
@@ -1050,11 +1080,17 @@ classdef Assist_Shortening_GUI_exported < matlab.apps.AppBase
                 return;
             else
                 % this copies all the *.mat files to the output folder
-                mat_files = dir(fullfile('mydefaultpath','*.mat'));
+                mat_files = dir(fullfile('D:\LonitPeeters\data','*.mat'));
                 for ifile = 1:length(mat_files)
                     file = mat_files(ifile);
                     copyfile(fullfile(file.folder,file.name),fullfile(app.datalogfolder,file.name));
                 end
+                % delete the original files after this ?
+                for ifile = 1:length(mat_files)
+                    file = mat_files(ifile);
+                    delete(fullfile(file.folder,file.name));
+                end
+
             end
         end
 
