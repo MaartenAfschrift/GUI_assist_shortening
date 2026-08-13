@@ -918,8 +918,8 @@ classdef Assist_Shortening_GUI_exported < matlab.apps.AppBase
         function KdEditFieldValueChanged(app, event)
             value = app.KdEditField.Value;
             %app.writeDouble(app.writeMap.pd_kd, value, app.tcClient_lowlevel);
-            app.writeDouble(app.writeMap.pd_kp_left, value, app.tcClient_lowlevel);
-            app.writeDouble(app.writeMap.pd_kp_right, value, app.tcClient_lowlevel);
+            app.writeDouble(app.writeMap.pd_kd_left, value, app.tcClient_lowlevel);
+            app.writeDouble(app.writeMap.pd_kd_right, value, app.tcClient_lowlevel);
             app.TextArea.Value = [app.TextArea.Value; {[' kd set to ' num2str(value)]}];
 
         end
