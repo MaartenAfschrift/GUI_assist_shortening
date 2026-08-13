@@ -3,13 +3,18 @@ classdef Assist_Shortening_GUI_exported < matlab.apps.AppBase
     % Properties that correspond to app components
     properties (Access = public)
         UIFigure                       matlab.ui.Figure
+        clearButton                    matlab.ui.control.Button
+        CopyDataButton                 matlab.ui.control.Button
+        SetFolderDataLogButton         matlab.ui.control.Button
         PrintControlParametersButton   matlab.ui.control.Button
         TextArea                       matlab.ui.control.TextArea
         enabledatacollectionCheckBox   matlab.ui.control.CheckBox
         InitLowlevelcontrollerPanel    matlab.ui.container.Panel
-        enablemotorvelocityRCheckBox   matlab.ui.control.CheckBox
+        resetdriveRCheckBox            matlab.ui.control.CheckBox
+        resetdriveLCheckBox            matlab.ui.control.CheckBox
+        enablemotorvelRCheckBox        matlab.ui.control.CheckBox
         enabledriveRCheckBox           matlab.ui.control.CheckBox
-        enablemotorvelocityLCheckBox   matlab.ui.control.CheckBox
+        enablemotorvelLCheckBox        matlab.ui.control.CheckBox
         enabledriveLCheckBox           matlab.ui.control.CheckBox
         maxdorsiflexRButton            matlab.ui.control.Button
         maxplantarflexRButton          matlab.ui.control.Button
@@ -45,8 +50,8 @@ classdef Assist_Shortening_GUI_exported < matlab.apps.AppBase
         KdEditFieldLabel               matlab.ui.control.Label
         KpEditField                    matlab.ui.control.NumericEditField
         KpEditFieldLabel               matlab.ui.control.Label
-        Muscle_Act_right               matlab.ui.control.UIAxes
         Muscle_Act_left                matlab.ui.control.UIAxes
+        Muscle_Act_right               matlab.ui.control.UIAxes
         RightJointMoments              matlab.ui.control.UIAxes
         LeftJointMoments               matlab.ui.control.UIAxes
         RightMuscleMoments             matlab.ui.control.UIAxes
@@ -197,6 +202,7 @@ classdef Assist_Shortening_GUI_exported < matlab.apps.AppBase
         writeMap struct
         handleInitFailures struct
         loopTimer timer
+        datalogfolder
     end
 
     methods (Access = private)
@@ -625,6 +631,8 @@ classdef Assist_Shortening_GUI_exported < matlab.apps.AppBase
                 'pd_kp_right', [base_name_low 'ManualKp2_Value'], 'lowlevel_params',app.tcClient_lowlevel; ...
                 'pd_kd_left', [base_name_low 'ManualKd_Value'], 'lowlevel_params',app.tcClient_lowlevel; ...
                 'pd_kd_right', [base_name_low 'ManualKd1_Value'], 'lowlevel_params',app.tcClient_lowlevel; ...
+                'reset_drive_left', [base_name_low 'Constant27_Value'], 'lowlevel_params',app.tcClient_lowlevel; ...
+                'reset_drive_right', [base_name_low 'Constant58_Value'], 'lowlevel_params',app.tcClient_lowlevel; ...
 
                 'HighLevelParamHandle', [base_name_output 'highlevel_params'], 'highlevel_params',app.tcClient_highlevel; ...
                 'lowlevel_params_output', [base_name_low 'lowlevel_params'], 'lowlevel_params',app.tcClient_lowlevel ...;
@@ -693,6 +701,12 @@ classdef Assist_Shortening_GUI_exported < matlab.apps.AppBase
                 start(app.loopTimer);
             end
 
+            % here we want to update the parameters in the GUI based on the
+            % current values in the simulink model. I'm not sure how we can
+            % do this properly. we could try to read them from the
+            % .Modelproperties so that we do not have to export all of them
+            % as an output
+
         end
 
         % Button pushed function: SetParamsFileButton
@@ -722,7 +736,7 @@ classdef Assist_Shortening_GUI_exported < matlab.apps.AppBase
             if exist(app.muscle_params_file,'file')
                 % load the muscle params file
                 muscle_params = load(app.muscle_params_file);
-                disp([app.muscle_params_file ' muscle params file loaded correctly']);
+                app.TextArea.Value = [app.TextArea.Value; {[app.muscle_params_file ' muscle params file loaded correctly']}];
                 % unpack muscle params in memory
                 % ToDo: discuss how to do this with Lonit. This will
                 % look something like this
@@ -730,12 +744,9 @@ classdef Assist_Shortening_GUI_exported < matlab.apps.AppBase
                 % workspace
                 %unpack_model(muscle_params.model)
                 % test upload one param file
-                app.writeDouble(app.writeMap.Soleus_lmOpt_r,...
-                        99, ...
-                        app.tcClient_highlevel);
-
+                
                 % loop over all params we want to change
-                disp([app.muscle_params_file ' started updating muscle params']);
+                app.TextArea.Value = [app.TextArea.Value; {[app.muscle_params_file ' started updating muscle params']}];
                 for iparam = 1:length(app.headers_muscle_params)
                     % name of the variable
                     var_name = app.headers_muscle_params{iparam};
@@ -743,16 +754,25 @@ classdef Assist_Shortening_GUI_exported < matlab.apps.AppBase
                     parts = regexp(var_name, '^([^_]+)_(.*)$', 'tokens', 'once');
                     muscle_name = parts{1};
                     param_name = parts{2};
-                    % adapt muscle parameter value
-                    value_sel = muscle_params.model.(muscle_name).(param_name);
+                    iend = length(var_name); 
+                    if strcmp(var_name(iend-1:iend), '_r')
+                        % adapt muscle parameter value
+                        value_sel = muscle_params.model_r.(muscle_name).(param_name);
+                    elseif strcmp(var_name(iend-1:iend), '_l')
+                        % adapt muscle parameter value
+                        value_sel = muscle_params.model_l.(muscle_name).(param_name);
+                    else
+                        app.TextArea.Value = [app.TextArea.Value; {['unclear if ' var_name ' is left or right']}];
+                    end
                     app.writeDouble(app.writeMap.(var_name),...
                         value_sel, ...
                         app.tcClient_highlevel);
                     % display set muscle parameter
-                    disp([app.muscle_params_file [var_name ' set to ' num2str(value_sel)]]);
+                    app.TextArea.Value = [app.TextArea.Value;...
+                        {[app.muscle_params_file [var_name ' set to ' num2str(value_sel)]]}];
                 end
             else
-                disp([app.muscle_params_file ' does not exist']);
+                app.TextArea.Value = [app.TextArea.Value; {[app.muscle_params_file ' does not exist']}];
             end
         end
 
@@ -798,65 +818,79 @@ classdef Assist_Shortening_GUI_exported < matlab.apps.AppBase
         % Button pushed function: zeroLoadcellLButton
         function zeroLoadcellLButtonPushed(app, event)
             app.pulse(app.writeMap.zero_loadcell_left, app.dt_zero_sensors, app.tcClient_lowlevel);
+            app.TextArea.Value = [app.TextArea.Value; {' zero left loadcell finished'}];
         end
 
         % Button pushed function: zeroloadcellRButton
         function zeroloadcellRButtonPushed(app, event)
             app.pulse(app.writeMap.zero_loadcell_right, app.dt_zero_sensors, app.tcClient_lowlevel);
+            app.TextArea.Value = [app.TextArea.Value; {' zero right loadcell finished'}];
         end
 
         % Button pushed function: zeroencoderLButton
         function zeroencoderLButtonPushed(app, event)
             app.pulse(app.writeMap.zero_encoder_left, app.dt_zero_sensors, app.tcClient_lowlevel);
+            app.TextArea.Value = [app.TextArea.Value; {' zero left encoder finished'}];
         end
 
         % Button pushed function: zeroencoderRButton
         function zeroencoderRButtonPushed(app, event)
             app.pulse(app.writeMap.zero_encoder_right, app.dt_zero_sensors, app.tcClient_lowlevel);
+            app.TextArea.Value = [app.TextArea.Value; {' zero right encoder finished'}];
         end
 
         % Button pushed function: maxplantarflexLButton
         function maxplantarflexLButtonPushed(app, event)
             app.pulse(app.writeMap.max_plantarflex_left, app.dt_zero_sensors, app.tcClient_lowlevel);
+            app.TextArea.Value = [app.TextArea.Value; {' max left plantarflexion set'}];
         end
 
         % Button pushed function: maxplantarflexRButton
         function maxplantarflexRButtonPushed(app, event)
             app.pulse(app.writeMap.max_plantarflex_right, app.dt_zero_sensors, app.tcClient_lowlevel);
+            app.TextArea.Value = [app.TextArea.Value; {' max right plantarflexion set'}];
         end
 
         % Button pushed function: maxdorsiflexLButton
         function maxdorsiflexLButtonPushed(app, event)
             app.pulse(app.writeMap.max_dorsiflex_left, app.dt_zero_sensors, app.tcClient_lowlevel);
+            app.TextArea.Value = [app.TextArea.Value; {' max left dorsiflexion set'}];
         end
 
         % Button pushed function: maxdorsiflexRButton
         function maxdorsiflexRButtonPushed(app, event)
             app.pulse(app.writeMap.max_dorsiflex_right, app.dt_zero_sensors, app.tcClient_lowlevel);
+            app.TextArea.Value = [app.TextArea.Value; {' max right dorsiflexion set'}];
         end
 
         % Value changed function: enabledriveLCheckBox
         function enabledriveLCheckBoxValueChanged(app, event)
             value = app.enabledriveLCheckBox.Value;
             app.writeDouble(app.writeMap.enable_drives_left, value, app.tcClient_lowlevel);
+            app.TextArea.Value = [app.TextArea.Value; {' left motor drive enabled'}];
         end
 
         % Value changed function: enabledriveRCheckBox
         function enabledriveRCheckBoxValueChanged(app, event)
             value = app.enabledriveRCheckBox.Value;
             app.writeDouble(app.writeMap.enable_drives_right, value, app.tcClient_lowlevel);
+            app.TextArea.Value = [app.TextArea.Value; {' right motor drive enabled'}];
         end
 
-        % Value changed function: enablemotorvelocityLCheckBox
-        function enablemotorvelocityLCheckBoxValueChanged(app, event)
-            value = app.enablemotorvelocityLCheckBox.Value;
+        % Value changed function: enablemotorvelLCheckBox
+        function enablemotorvelLCheckBoxValueChanged(app, event)
+            value = app.enablemotorvelLCheckBox.Value;
             app.writeDouble(app.writeMap.enable_motor_velocity_left, value, app.tcClient_lowlevel);
+            app.TextArea.Value = [app.TextArea.Value; {' left motor vel enabled'}];
+
         end
 
-        % Value changed function: enablemotorvelocityRCheckBox
-        function enablemotorvelocityRCheckBoxValueChanged(app, event)
-            value = app.enablemotorvelocityRCheckBox.Value;
+        % Value changed function: enablemotorvelRCheckBox
+        function enablemotorvelRCheckBoxValueChanged(app, event)
+            value = app.enablemotorvelRCheckBox.Value;
             app.writeDouble(app.writeMap.enable_motor_velocity_right, value, app.tcClient_lowlevel);
+            app.TextArea.Value = [app.TextArea.Value; {' right motor vel enabled'}];
+
         end
 
         % Value changed function: enabledatacollectionCheckBox
@@ -867,6 +901,8 @@ classdef Assist_Shortening_GUI_exported < matlab.apps.AppBase
             else
                 app.writeDouble(app.writeMap.enable_data_collection, 0, app.tcClient_lowlevel);
             end
+            app.TextArea.Value = [app.TextArea.Value; {' data collection started'}];
+
         end
 
         % Value changed function: KpEditField
@@ -874,6 +910,8 @@ classdef Assist_Shortening_GUI_exported < matlab.apps.AppBase
             value = app.KpEditField.Value;
             app.writeDouble(app.writeMap.pd_kp_left, value, app.tcClient_lowlevel);
             app.writeDouble(app.writeMap.pd_kp_right, value, app.tcClient_lowlevel);
+            app.TextArea.Value = [app.TextArea.Value; {[' kp set to ' num2str(value)]}];
+
         end
 
         % Value changed function: KdEditField
@@ -882,24 +920,32 @@ classdef Assist_Shortening_GUI_exported < matlab.apps.AppBase
             %app.writeDouble(app.writeMap.pd_kd, value, app.tcClient_lowlevel);
             app.writeDouble(app.writeMap.pd_kp_left, value, app.tcClient_lowlevel);
             app.writeDouble(app.writeMap.pd_kp_right, value, app.tcClient_lowlevel);
+            app.TextArea.Value = [app.TextArea.Value; {[' kd set to ' num2str(value)]}];
+
         end
 
         % Value changed function: bexoEditField
         function bexoEditFieldValueChanged(app, event)
             value = app.bexoEditField.Value;
             app.writeDouble(app.writeMap.b_exo,value, app.tcClient_highlevel)
+            app.TextArea.Value = [app.TextArea.Value; {[' bexo set to ' num2str(value)]}];
+
         end
 
         % Value changed function: PercentageAssistanceEditField
         function PercentageAssistanceEditFieldValueChanged(app, event)
             value = app.PercentageAssistanceEditField.Value;
             app.writeDouble(app.writeMap.perc_assistance, value/100, app.tcClient_highlevel)
+            app.TextArea.Value = [app.TextArea.Value; {[' percentage assistance set to ' num2str(value)]}];
+
         end
 
         % Value changed function: MinimalTorqueEditField
         function MinimalTorqueEditFieldValueChanged(app, event)
             value = app.MinimalTorqueEditField.Value;
             app.writeDouble(app.writeMap.MinimalTorque, value, app.tcClient_highlevel)
+            app.TextArea.Value = [app.TextArea.Value; {[' minimal torque set to ' num2str(value)]}];
+
         end
 
         % Value changed function: actdyn_typeDropDown
@@ -914,7 +960,7 @@ classdef Assist_Shortening_GUI_exported < matlab.apps.AppBase
                 % do something else
                 output = 2;
             end
-            app.writeDouble(app.writeMap.actdyn_selection, output, app.tcClient_highlevel)            
+            app.writeDouble(app.writeMap.actdyn_selection, output, app.tcClient_highlevel)
         end
 
         % Value changed function: cutoff_velEditField
@@ -926,7 +972,9 @@ classdef Assist_Shortening_GUI_exported < matlab.apps.AppBase
         % Value changed function: MaxTorqueEditField
         function MaxTorqueEditFieldValueChanged(app, event)
             value = app.MaxTorqueEditField.Value;
-            app.writeDouble(app.writeMap.max_torque,value, app.tcClient_lowlevel);                
+            app.writeDouble(app.writeMap.max_torque,value, app.tcClient_lowlevel);   
+            app.TextArea.Value = [app.TextArea.Value; {[' max torque set to ' num2str(value)]}];
+
         end
 
         % Value changed function: durationzeroEditField
@@ -966,6 +1014,53 @@ classdef Assist_Shortening_GUI_exported < matlab.apps.AppBase
 
             % read the lowlevel param data
 
+        end
+
+        % Value changed function: resetdriveLCheckBox
+        function resetdriveLCheckBoxValueChanged(app, event)
+            value = app.resetdriveLCheckBox.Value;
+            app.writeDouble(app.writeMap.reset_drive_left, value, app.tcClient_lowlevel)
+        end
+
+        % Value changed function: resetdriveRCheckBox
+        function resetdriveRCheckBoxValueChanged(app, event)
+            value = app.resetdriveRCheckBox.Value;
+            app.writeDouble(app.writeMap.reset_drive_right, value, app.tcClient_lowlevel)
+        end
+
+        % Button pushed function: SetFolderDataLogButton
+        function SetFolderDataLogButtonPushed(app, event)
+            % set folder data logging
+            datafolder = uigetdir();
+            if isequal(datafolder, 0)
+                app.datalogfolder = '';
+                app.TextArea.Value = [app.TextArea.Value; {' no datafolder selected'}];
+                return;
+            end
+            app.datalogfolder = datafolder;
+            % also print selected file in the window
+            app.TextArea.Value = [app.TextArea.Value; {['data log folder : ' app.datalogfolder]}];
+        end
+
+        % Button pushed function: CopyDataButton
+        function CopyDataButtonPushed(app, event)
+
+            if isempty(app.datalogfolder)
+                app.TextArea.Value = [app.TextArea.Value; {' no datafolder selected'}];
+                return;
+            else
+                % this copies all the *.mat files to the output folder
+                mat_files = dir(fullfile('mydefaultpath','*.mat'));
+                for ifile = 1:length(mat_files)
+                    file = mat_files(ifile);
+                    copyfile(fullfile(file.folder,file.name),fullfile(app.datalogfolder,file.name));
+                end
+            end
+        end
+
+        % Button pushed function: clearButton
+        function clearButtonPushed(app, event)
+            app.TextArea.Value = {' .....'};
         end
     end
 
@@ -1013,19 +1108,19 @@ classdef Assist_Shortening_GUI_exported < matlab.apps.AppBase
             app.RightJointMoments.Toolbar.Visible = 'off';
             app.RightJointMoments.Position = [679 201 300 185];
 
-            % Create Muscle_Act_left
-            app.Muscle_Act_left = uiaxes(app.UIFigure);
-            xlabel(app.Muscle_Act_left, 'Time [s]')
-            ylabel(app.Muscle_Act_left, 'Muscle activation')
-            zlabel(app.Muscle_Act_left, 'Z')
-            app.Muscle_Act_left.Position = [351 17 300 185];
-
             % Create Muscle_Act_right
             app.Muscle_Act_right = uiaxes(app.UIFigure);
             xlabel(app.Muscle_Act_right, 'Time [s]')
             ylabel(app.Muscle_Act_right, 'muscle activation')
             zlabel(app.Muscle_Act_right, 'Z')
             app.Muscle_Act_right.Position = [679 17 300 185];
+
+            % Create Muscle_Act_left
+            app.Muscle_Act_left = uiaxes(app.UIFigure);
+            xlabel(app.Muscle_Act_left, 'Time [s]')
+            ylabel(app.Muscle_Act_left, 'Muscle activation')
+            zlabel(app.Muscle_Act_left, 'Z')
+            app.Muscle_Act_left.Position = [351 17 300 185];
 
             % Create LowlevelcontrollersettingsPanel
             app.LowlevelcontrollersettingsPanel = uipanel(app.UIFigure);
@@ -1240,11 +1335,11 @@ classdef Assist_Shortening_GUI_exported < matlab.apps.AppBase
             app.enabledriveLCheckBox.Text = 'enable drive L';
             app.enabledriveLCheckBox.Position = [598 74 97 22];
 
-            % Create enablemotorvelocityLCheckBox
-            app.enablemotorvelocityLCheckBox = uicheckbox(app.InitLowlevelcontrollerPanel);
-            app.enablemotorvelocityLCheckBox.ValueChangedFcn = createCallbackFcn(app, @enablemotorvelocityLCheckBoxValueChanged, true);
-            app.enablemotorvelocityLCheckBox.Text = 'enable motor velocity L';
-            app.enablemotorvelocityLCheckBox.Position = [735 74 145 22];
+            % Create enablemotorvelLCheckBox
+            app.enablemotorvelLCheckBox = uicheckbox(app.InitLowlevelcontrollerPanel);
+            app.enablemotorvelLCheckBox.ValueChangedFcn = createCallbackFcn(app, @enablemotorvelLCheckBoxValueChanged, true);
+            app.enablemotorvelLCheckBox.Text = 'enable motor vel L';
+            app.enablemotorvelLCheckBox.Position = [839 75 120 22];
 
             % Create enabledriveRCheckBox
             app.enabledriveRCheckBox = uicheckbox(app.InitLowlevelcontrollerPanel);
@@ -1252,11 +1347,23 @@ classdef Assist_Shortening_GUI_exported < matlab.apps.AppBase
             app.enabledriveRCheckBox.Text = 'enable drive R';
             app.enabledriveRCheckBox.Position = [598 29 99 22];
 
-            % Create enablemotorvelocityRCheckBox
-            app.enablemotorvelocityRCheckBox = uicheckbox(app.InitLowlevelcontrollerPanel);
-            app.enablemotorvelocityRCheckBox.ValueChangedFcn = createCallbackFcn(app, @enablemotorvelocityRCheckBoxValueChanged, true);
-            app.enablemotorvelocityRCheckBox.Text = 'enable motor velocity R';
-            app.enablemotorvelocityRCheckBox.Position = [735 29 147 22];
+            % Create enablemotorvelRCheckBox
+            app.enablemotorvelRCheckBox = uicheckbox(app.InitLowlevelcontrollerPanel);
+            app.enablemotorvelRCheckBox.ValueChangedFcn = createCallbackFcn(app, @enablemotorvelRCheckBoxValueChanged, true);
+            app.enablemotorvelRCheckBox.Text = 'enable motor vel R';
+            app.enablemotorvelRCheckBox.Position = [837 30 122 22];
+
+            % Create resetdriveLCheckBox
+            app.resetdriveLCheckBox = uicheckbox(app.InitLowlevelcontrollerPanel);
+            app.resetdriveLCheckBox.ValueChangedFcn = createCallbackFcn(app, @resetdriveLCheckBoxValueChanged, true);
+            app.resetdriveLCheckBox.Text = 'reset drive L';
+            app.resetdriveLCheckBox.Position = [718 76 87 22];
+
+            % Create resetdriveRCheckBox
+            app.resetdriveRCheckBox = uicheckbox(app.InitLowlevelcontrollerPanel);
+            app.resetdriveRCheckBox.ValueChangedFcn = createCallbackFcn(app, @resetdriveRCheckBoxValueChanged, true);
+            app.resetdriveRCheckBox.Text = 'reset drive R';
+            app.resetdriveRCheckBox.Position = [718 31 89 22];
 
             % Create enabledatacollectionCheckBox
             app.enabledatacollectionCheckBox = uicheckbox(app.UIFigure);
@@ -1266,13 +1373,31 @@ classdef Assist_Shortening_GUI_exported < matlab.apps.AppBase
 
             % Create TextArea
             app.TextArea = uitextarea(app.UIFigure);
-            app.TextArea.Position = [1018 17 513 655];
+            app.TextArea.Position = [988 17 543 655];
 
             % Create PrintControlParametersButton
             app.PrintControlParametersButton = uibutton(app.UIFigure, 'push');
             app.PrintControlParametersButton.ButtonPushedFcn = createCallbackFcn(app, @PrintControlParametersButtonPushed, true);
             app.PrintControlParametersButton.Position = [1018 692 146 22];
             app.PrintControlParametersButton.Text = 'Print Control Parameters';
+
+            % Create SetFolderDataLogButton
+            app.SetFolderDataLogButton = uibutton(app.UIFigure, 'push');
+            app.SetFolderDataLogButton.ButtonPushedFcn = createCallbackFcn(app, @SetFolderDataLogButtonPushed, true);
+            app.SetFolderDataLogButton.Position = [1186 692 130 22];
+            app.SetFolderDataLogButton.Text = 'SetFolderDataLog';
+
+            % Create CopyDataButton
+            app.CopyDataButton = uibutton(app.UIFigure, 'push');
+            app.CopyDataButton.ButtonPushedFcn = createCallbackFcn(app, @CopyDataButtonPushed, true);
+            app.CopyDataButton.Position = [1340 692 100 22];
+            app.CopyDataButton.Text = 'CopyData';
+
+            % Create clearButton
+            app.clearButton = uibutton(app.UIFigure, 'push');
+            app.clearButton.ButtonPushedFcn = createCallbackFcn(app, @clearButtonPushed, true);
+            app.clearButton.Position = [1467 672 64 22];
+            app.clearButton.Text = 'clear';
 
             % Show the figure after all components are created
             app.UIFigure.Visible = 'on';
