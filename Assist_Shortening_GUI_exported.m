@@ -10,6 +10,7 @@ classdef Assist_Shortening_GUI_exported < matlab.apps.AppBase
         TextArea                       matlab.ui.control.TextArea
         enabledatacollectionCheckBox   matlab.ui.control.CheckBox
         InitLowlevelcontrollerPanel    matlab.ui.container.Panel
+        ignoreerrorlowlevelCheckBox    matlab.ui.control.CheckBox
         resetdriveRCheckBox            matlab.ui.control.CheckBox
         resetdriveLCheckBox            matlab.ui.control.CheckBox
         enablemotorvelRCheckBox        matlab.ui.control.CheckBox
@@ -75,7 +76,7 @@ classdef Assist_Shortening_GUI_exported < matlab.apps.AppBase
         amsNetId = "130.89.78.82.1.1"  % ToDo: replace % Description
         TwinCatAdsPath = 'C:\TwinCAT\AdsApi\.NET\v4.0.30319\TwinCAT.Ads.dll';
         sampling_frequency_gui = 10
-        name_lowlevel_controller = 'MainLowLevelControlFinal' % to acces control params
+        name_lowlevel_controller = 'MainLowLevelControl' % to acces control params
         name_highlevel_controller = 'jlo_assist_short_explicit_clean_Lonit' % to acces control params
         JointWindowSec = 5 % number of seconds in figure
         dt_zero_sensors  = 2; % duration time window to get zero value sensors
@@ -633,6 +634,8 @@ classdef Assist_Shortening_GUI_exported < matlab.apps.AppBase
                 'pd_kd_right', [base_name_low 'ManualKd1_Value'], 'lowlevel_params',app.tcClient_lowlevel; ...
                 'reset_drive_left', [base_name_low 'Constant27_Value_m'], 'lowlevel_params',app.tcClient_lowlevel; ...
                 'reset_drive_right', [base_name_low 'Constant58_Value_l'], 'lowlevel_params',app.tcClient_lowlevel; ...
+                'ignore_errors', [base_name_low 'ignore_errors'], 'lowlevel_params',app.tcClient_lowlevel; ...
+
 
                 'HighLevelParamHandle', [base_name_output 'highlevel_params'], 'highlevel_params',app.tcClient_highlevel; ...
                 'lowlevel_params_output', [base_name_low 'lowlevel_params'], 'lowlevel_params',app.tcClient_lowlevel ...;
@@ -1098,6 +1101,12 @@ classdef Assist_Shortening_GUI_exported < matlab.apps.AppBase
         function clearButtonPushed(app, event)
             app.TextArea.Value = {' .....'};
         end
+
+        % Value changed function: ignoreerrorlowlevelCheckBox
+        function ignoreerrorlowlevelCheckBoxValueChanged(app, event)
+            value = app.ignoreerrorlowlevelCheckBox.Value;
+            app.writeDouble(app.writeMap.ignore_errors, value, app.tcClient_lowlevel)
+        end
     end
 
     % Component initialization
@@ -1108,7 +1117,6 @@ classdef Assist_Shortening_GUI_exported < matlab.apps.AppBase
 
             % Create UIFigure and hide until all components are created
             app.UIFigure = uifigure('Visible', 'off');
-            app.UIFigure.Color = [1 1 1];
             app.UIFigure.Position = [100 100 1536 728];
             app.UIFigure.Name = 'MATLAB App';
             app.UIFigure.Theme = 'light';
@@ -1400,6 +1408,12 @@ classdef Assist_Shortening_GUI_exported < matlab.apps.AppBase
             app.resetdriveRCheckBox.ValueChangedFcn = createCallbackFcn(app, @resetdriveRCheckBoxValueChanged, true);
             app.resetdriveRCheckBox.Text = 'reset drive R';
             app.resetdriveRCheckBox.Position = [718 31 89 22];
+
+            % Create ignoreerrorlowlevelCheckBox
+            app.ignoreerrorlowlevelCheckBox = uicheckbox(app.InitLowlevelcontrollerPanel);
+            app.ignoreerrorlowlevelCheckBox.ValueChangedFcn = createCallbackFcn(app, @ignoreerrorlowlevelCheckBoxValueChanged, true);
+            app.ignoreerrorlowlevelCheckBox.Text = 'ignore error lowlevel';
+            app.ignoreerrorlowlevelCheckBox.Position = [598 1 129 22];
 
             % Create enabledatacollectionCheckBox
             app.enabledatacollectionCheckBox = uicheckbox(app.UIFigure);
