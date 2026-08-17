@@ -129,7 +129,9 @@ classdef MockAdsClient < handle
                 0.35 + 0.08 * sin(2 * pi * 0.9 * t + 1.0);    % Tibialis_act_l
                 0.45 + 0.10 * sin(2 * pi * 0.9 * t + pi);      % Soleus_act_r
                 0.40 + 0.12 * sin(2 * pi * 0.9 * t + pi + 0.5);% Gastroc_act_r
-                0.35 + 0.08 * sin(2 * pi * 0.9 * t + pi + 1.0) % Tibialis_act_r
+                0.35 + 0.08 * sin(2 * pi * 0.9 * t + pi + 1.0);% Tibialis_act_r
+                10 * sin(2 * pi * 0.3 * t);                    % Encoder_l
+                10 * sin(2 * pi * 0.3 * t + pi)                % Encoder_r
             ];
         end
 

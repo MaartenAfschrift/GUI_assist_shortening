@@ -51,6 +51,7 @@ classdef Assist_Shortening_GUI_exported < matlab.apps.AppBase
         KdEditFieldLabel               matlab.ui.control.Label
         KpEditField                    matlab.ui.control.NumericEditField
         KpEditFieldLabel               matlab.ui.control.Label
+        encoderdata                    matlab.ui.control.UIAxes
         Muscle_Act_left                matlab.ui.control.UIAxes
         Muscle_Act_right               matlab.ui.control.UIAxes
         RightJointMoments              matlab.ui.control.UIAxes
@@ -82,7 +83,7 @@ classdef Assist_Shortening_GUI_exported < matlab.apps.AppBase
         dt_zero_sensors  = 2; % duration time window to get zero value sensors
 
         % specify number of doubles in gui_output (for visualisation)
-        number_gui_outputs = 19
+        number_gui_outputs = 21
         gui_data_headers = {'LeftExoDesiredMoment',...      % 1
             'RightExoDesiredMoment',...                     % 2
             'LeftBioMoment',...                             % 3
@@ -101,7 +102,9 @@ classdef Assist_Shortening_GUI_exported < matlab.apps.AppBase
             'Tibialis_act_l',...                            % 16
             'Soleus_act_r',...                              % 17
             'Gastroc_act_r',...                             % 18
-            'Tibialis_act_r'};                              % 19
+            'Tibialis_act_r',...                            % 19
+            'Encoder_l',...                                 % 20
+            'Encoder_r'};                                   % 21
 
         number_highlevel_param_outputs = 7;
         highlevel_params_headers = {
@@ -179,7 +182,11 @@ classdef Assist_Shortening_GUI_exported < matlab.apps.AppBase
         rightActStartTic
         rightActMaxPoints = 50
 
-        
+        % figure encoder data (left and right on one plot)
+        leftEncoderPlot
+        rightEncoderPlot
+        encoderStartTic
+        encoderMaxPoints = 50 % default value
 
         % Vector-read path properties
         GuiOutputHandle
@@ -241,8 +248,8 @@ classdef Assist_Shortening_GUI_exported < matlab.apps.AppBase
                 RightGastrocAct = app.gui_data(strcmp(app.gui_data_headers,'Gastroc_act_r'));
                 RightTibialisAct = app.gui_data(strcmp(app.gui_data_headers,'Tibialis_act_r'));
 
-
-
+                LeftEncoder = app.gui_data(strcmp(app.gui_data_headers,'Encoder_l'));
+                RightEncoder = app.gui_data(strcmp(app.gui_data_headers,'Encoder_r'));
 
                 % update plots
                 app.updateLeftJointPlot(LeftExoDesiredMoment, LeftBioMoment, LeftAssistShortMoment);
@@ -251,6 +258,7 @@ classdef Assist_Shortening_GUI_exported < matlab.apps.AppBase
                 app.updateRightMuscleTauPlot(RightSolMoment, RightGasMoment, RightTibMoment);
                 app.updateLeftMuscleActPlot(LeftSoleusAct, LeftGastrocAct, LeftTibialisAct);
                 app.updateRightMuscleActPlot(RightSoleusAct, RightGastrocAct, RightTibialisAct);
+                app.updateEncoderPlot(LeftEncoder, RightEncoder);
                 drawnow limitrate nocallbacks
 
             catch ME
@@ -509,6 +517,33 @@ classdef Assist_Shortening_GUI_exported < matlab.apps.AppBase
             end
         end
 
+        function initEncoderPlot(app)
+            cla(app.encoderdata);
+            grid(app.encoderdata, 'on');
+            hold(app.encoderdata, 'on');
+            app.leftEncoderPlot = animatedline(app.encoderdata, ...
+                'Color', [0 0.4470 0.7410], ...
+                'LineWidth', 1.25, ...
+                'MaximumNumPoints', app.encoderMaxPoints);
+            app.rightEncoderPlot = animatedline(app.encoderdata, ...
+                'Color', [0.8500 0.3250 0.0980], ...
+                'LineWidth', 1.25, ...
+                'MaximumNumPoints', app.encoderMaxPoints);
+            legend(app.encoderdata, {'Left','Right'}, 'Location', 'best');
+            app.encoderStartTic = tic;
+        end
+
+        function updateEncoderPlot(app, leftEncoder, rightEncoder)
+            t = toc(app.encoderStartTic);
+            addpoints(app.leftEncoderPlot, t, leftEncoder);
+            addpoints(app.rightEncoderPlot, t, rightEncoder);
+            if t > app.JointWindowSec
+                xlim(app.encoderdata, [t - app.JointWindowSec, t]);
+            else
+                xlim(app.encoderdata, [0, app.JointWindowSec]);
+            end
+        end
+
 
     end
 
@@ -683,6 +718,7 @@ classdef Assist_Shortening_GUI_exported < matlab.apps.AppBase
             app.rightTauMaxPoints = app.JointWindowSec * app.sampling_frequency_gui;
             app.leftActMaxPoints = app.JointWindowSec * app.sampling_frequency_gui;
             app.rightActMaxPoints = app.JointWindowSec * app.sampling_frequency_gui;
+            app.encoderMaxPoints = app.JointWindowSec * app.sampling_frequency_gui;
 
 
             % init the plot
@@ -692,6 +728,7 @@ classdef Assist_Shortening_GUI_exported < matlab.apps.AppBase
             app.initRightMuscleTauPlot();
             app.initLeftMuscleActPlot();
             app.initRightMuscleActPlot();
+            app.initEncoderPlot();
 
 
             % set sampling frequency of the GUI
@@ -1118,6 +1155,7 @@ classdef Assist_Shortening_GUI_exported < matlab.apps.AppBase
 
             % Create UIFigure and hide until all components are created
             app.UIFigure = uifigure('Visible', 'off');
+            app.UIFigure.Color = [1 1 1];
             app.UIFigure.Position = [100 100 1536 728];
             app.UIFigure.Name = 'MATLAB App';
             app.UIFigure.Theme = 'light';
@@ -1166,6 +1204,14 @@ classdef Assist_Shortening_GUI_exported < matlab.apps.AppBase
             ylabel(app.Muscle_Act_left, 'Muscle activation')
             zlabel(app.Muscle_Act_left, 'Z')
             app.Muscle_Act_left.Position = [351 17 300 185];
+
+            % Create encoderdata
+            app.encoderdata = uiaxes(app.UIFigure);
+            title(app.encoderdata, 'Encoder angles')
+            xlabel(app.encoderdata, 'Time [s]')
+            ylabel(app.encoderdata, 'rad [deg]')
+            zlabel(app.encoderdata, 'Z')
+            app.encoderdata.Position = [977 17 282 185];
 
             % Create LowlevelcontrollersettingsPanel
             app.LowlevelcontrollersettingsPanel = uipanel(app.UIFigure);
@@ -1424,7 +1470,7 @@ classdef Assist_Shortening_GUI_exported < matlab.apps.AppBase
 
             % Create TextArea
             app.TextArea = uitextarea(app.UIFigure);
-            app.TextArea.Position = [988 17 543 655];
+            app.TextArea.Position = [988 212 543 460];
 
             % Create PrintControlParametersButton
             app.PrintControlParametersButton = uibutton(app.UIFigure, 'push');
