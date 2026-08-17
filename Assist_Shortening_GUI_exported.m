@@ -757,14 +757,14 @@ classdef Assist_Shortening_GUI_exported < matlab.apps.AppBase
                     parts = regexp(var_name, '^([^_]+)_(.*)$', 'tokens', 'once');
                     muscle_name = parts{1};
                     param_name = parts{2};
-                    muscle_name_no_side = muscle_name(1:end-2);
+                    param_name_no_side = param_name(1:end-2);
                     iend = length(var_name); 
                     if strcmp(var_name(iend-1:iend), '_r')
                         % adapt muscle parameter value
-                        value_sel = muscle_params.model_r.(muscle_name_no_side).(param_name);
+                        value_sel = muscle_params.model_r.(muscle_name).(param_name_no_side);
                     elseif strcmp(var_name(iend-1:iend), '_l')
                         % adapt muscle parameter value
-                        value_sel = muscle_params.model_l.(muscle_name_no_side).(param_name);
+                        value_sel = muscle_params.model_l.(muscle_name).(param_name_no_side);
                     else
                         app.TextArea.Value = [app.TextArea.Value; {['unclear if ' var_name ' is left or right']}];
                     end
