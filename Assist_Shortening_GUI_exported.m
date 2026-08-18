@@ -26,6 +26,7 @@ classdef Assist_Shortening_GUI_exported < matlab.apps.AppBase
         zeroloadcellRButton            matlab.ui.control.Button
         zeroLoadcellLButton            matlab.ui.control.Button
         HighlevelcontrollersettingsPanel  matlab.ui.container.Panel
+        zeroankleangleButton           matlab.ui.control.Button
         SelectControllerDropDown       matlab.ui.control.DropDown
         SelectControllerDropDownLabel  matlab.ui.control.Label
         cutoff_velEditField            matlab.ui.control.NumericEditField
@@ -648,6 +649,7 @@ classdef Assist_Shortening_GUI_exported < matlab.apps.AppBase
                 'b_exo', [base_name_high 'ModelParameters.bexo_Value'], 'controller_params',app.tcClient_highlevel; ...
                 'actdyn_selection', [base_name_high 'ModelParameters.ActDyn_mode_Value'], 'controller_params',app.tcClient_highlevel; ...
                 'cutoff_vel', [base_name_high 'ModelParameters.cutoff_vel_Value'], 'controller_params',app.tcClient_highlevel; ...
+                'zero_angles_highlevel', [base_name_high 'ModelParameters.zero_ankle_angle_Value'], 'controller_params',app.tcClient_highlevel; ...
                 
                 'zero_loadcell_left', [base_name_low 'Constant50_Value'], 'lowlevel_params',app.tcClient_lowlevel; ...
                 'zero_loadcell_right', [base_name_low 'Constant64_Value'], 'lowlevel_params',app.tcClient_lowlevel; ...
@@ -1145,6 +1147,12 @@ classdef Assist_Shortening_GUI_exported < matlab.apps.AppBase
             value = app.ignoreerrorlowlevelCheckBox.Value;
             app.writeDouble(app.writeMap.ignore_errors, value, app.tcClient_lowlevel)
         end
+
+        % Button pushed function: zeroankleangleButton
+        function zeroankleangleButtonPushed(app, event)
+            app.pulse(app.writeMap.zero_angles_highlevel, 0.5, app.tcClient_highlevel);
+            app.TextArea.Value = [app.TextArea.Value; {' zero angles highlevel set'}];
+        end
     end
 
     % Component initialization
@@ -1365,6 +1373,12 @@ classdef Assist_Shortening_GUI_exported < matlab.apps.AppBase
             app.SelectControllerDropDown.ValueChangedFcn = createCallbackFcn(app, @SelectControllerDropDownValueChanged, true);
             app.SelectControllerDropDown.Position = [113 265 129 22];
             app.SelectControllerDropDown.Value = 'Minimal_Impedance';
+
+            % Create zeroankleangleButton
+            app.zeroankleangleButton = uibutton(app.HighlevelcontrollersettingsPanel, 'push');
+            app.zeroankleangleButton.ButtonPushedFcn = createCallbackFcn(app, @zeroankleangleButtonPushed, true);
+            app.zeroankleangleButton.Position = [164 27 113 23];
+            app.zeroankleangleButton.Text = 'zero ankle angle';
 
             % Create InitLowlevelcontrollerPanel
             app.InitLowlevelcontrollerPanel = uipanel(app.UIFigure);
